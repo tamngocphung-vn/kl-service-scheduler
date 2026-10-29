@@ -90,7 +90,6 @@ export const vehicles = sqliteTable(
 );
 
 export const APPOINTMENT_STATUSES = ["CONFIRMED", "CANCELLED"] as const;
-export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
 // starts_at / ends_at are UTC epoch milliseconds so overlap checks are plain integer comparisons.
 export const appointments = sqliteTable(

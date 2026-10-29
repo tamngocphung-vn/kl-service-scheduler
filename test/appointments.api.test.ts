@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { appointments } from "../src/db/schema.js";
+import { eq } from "drizzle-orm";
+import {
+  appointments,
+  dealerships,
+  serviceBays,
+  technicianQualifications,
+  technicians,
+} from "../src/db/schema.js";
 import { JANE_LEAF, MARIA, MONDAY, RAJ, booking, createTestApp } from "./helpers.js";
 
 let ctx: Awaited<ReturnType<typeof createTestApp>>;
@@ -132,6 +139,39 @@ describe("POST /v1/appointments: resource availability", () => {
     expect((await book(booking({ ...MARIA, serviceTypeId: "svc-ev" }))).statusCode).toBe(201);
   });
 
+  it("never assigns an inactive technician", async () => {
+    // Chen is the only EV-qualified technician; once deactivated nobody qualifies.
+    ctx.db.update(technicians).set({ isActive: false }).where(eq(technicians.id, "tech-ldn-chen")).run();
+    const res = await book(booking({ ...JANE_LEAF, serviceTypeId: "svc-ev" }));
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe("NO_QUALIFIED_TECHNICIAN");
+  });
+
+  it("never assigns an inactive bay", async () => {
+    ctx.db.update(serviceBays).set({ isActive: false }).where(eq(serviceBays.id, "bay-ldn-1")).run();
+    expect((await book(booking())).json().serviceBayId).toBe("bay-ldn-2");
+
+    // With one bay out of service, a second simultaneous job has nowhere to go.
+    const res = await book(booking({ ...RAJ }));
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("NO_BAY_AVAILABLE");
+  });
+
+  it("prevents a vehicle being booked at two dealerships at overlapping times", async () => {
+    // A second UK dealership with the same hours as London, so the times genuinely overlap.
+    ctx.db.insert(dealerships).values({
+      id: "dlr-leeds", name: "Leeds", timezone: "Europe/London", opensAtMinute: 8 * 60, closesAtMinute: 18 * 60,
+    }).run();
+    ctx.db.insert(serviceBays).values({ id: "bay-lds-1", dealershipId: "dlr-leeds", name: "Bay 1" }).run();
+    ctx.db.insert(technicians).values({ id: "tech-lds-eve", dealershipId: "dlr-leeds", name: "Eve" }).run();
+    ctx.db.insert(technicianQualifications).values({ technicianId: "tech-lds-eve", serviceTypeId: "svc-oil" }).run();
+
+    expect((await book(booking({ dealershipId: "dlr-leeds" }))).statusCode).toBe(201);
+    const res = await book(booking({ startTime: `${MONDAY}T09:30:00Z` }));
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("VEHICLE_ALREADY_BOOKED");
+  });
+
   it("books exactly one of many simultaneous requests for the last slot", async () => {
     const contenders = [JANE_LEAF, MARIA, RAJ, { customerId: "cust-jane", vehicleId: "veh-jane-golf" }];
     const results = await Promise.all(contenders.map((c) => book(booking({ ...c, serviceTypeId: "svc-ev" }))));
@@ -233,6 +273,21 @@ describe("cancellation", () => {
     const again = await ctx.app.inject({ method: "POST", url: `/v1/appointments/${id}/cancel` });
     expect(again.statusCode).toBe(200);
     expect(again.json().status).toBe("CANCELLED");
+  });
+
+  it("refuses to cancel an appointment that has already started", async () => {
+    // The API can't create past appointments, so insert one that started before NOW.
+    const startsAt = Date.parse("2026-10-31T09:00:00Z");
+    ctx.db.insert(appointments).values({
+      id: "appt-past", dealershipId: "dlr-london", customerId: "cust-jane", vehicleId: "veh-jane-golf",
+      serviceTypeId: "svc-oil", technicianId: "tech-ldn-alice", serviceBayId: "bay-ldn-1",
+      startsAt, endsAt: startsAt + 3_600_000, status: "CONFIRMED", idempotencyKey: null,
+      createdAt: startsAt - 86_400_000, cancelledAt: null,
+    }).run();
+
+    const res = await ctx.app.inject({ method: "POST", url: "/v1/appointments/appt-past/cancel" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("APPOINTMENT_NOT_CANCELLABLE");
   });
 
   it("returns 404 for an unknown appointment", async () => {

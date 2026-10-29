@@ -52,15 +52,6 @@ function offsetMs(utcMs: number, timeZone: string): number {
   return asUtc - Math.floor(utcMs / 1000) * 1000;
 }
 
-export function isValidTimeZone(timeZone: string): boolean {
-  try {
-    formatterFor(timeZone);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** True for a real calendar date in YYYY-MM-DD form (rejects e.g. 2026-02-30). */
 export function isValidLocalDate(date: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);

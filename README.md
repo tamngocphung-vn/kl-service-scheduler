@@ -95,7 +95,7 @@ docs/                       System design document, OpenAPI spec
 npm test
 ```
 
-79 tests across five levels:
+83 tests across five levels:
 
 - **Domain unit tests** (`scheduling.test.ts`, `time.test.ts`): interval overlap edge cases (back-to-back is allowed, containment is not), opening-hours boundaries, timezone/DST conversion (London GMT/BST, Sydney across the date line), free-resource filtering and slot generation.
 - **API integration tests** (`appointments.api.test.ts`): HTTP requests against a real in-memory SQLite database with a fixed injected clock. They cover every core requirement and every error code: qualified-technician assignment, bays exhausted while technicians are free, availability checked across the whole duration, vehicle double-booking, cancellation releasing resources, idempotent retries, and the availability endpoint agreeing with the booking endpoint.
@@ -115,7 +115,7 @@ I asked for a deliberate layering that makes the AI's output easy to verify: **p
 
 ### Verification: trust nothing that hasn't been seen to fail
 
-- **Type check + full test run after every change.** 79 tests, against a real SQLite database rather than mocks.
+- **Type check + full test run after every change.** 83 tests, against a real SQLite database rather than mocks.
 - **Ran the real thing.** I seeded a database, started the server, and ran the cURL demo end to end. I checked the status codes, the assigned technicians and bays, the structured log lines and the metric counters by eye.
 - **Caught a test that couldn't fail.** The first concurrency test fired parallel HTTP requests in one process. On review, the AI and I recognised it was meaningless: better-sqlite3 is synchronous, so those requests never interleave, and the test would pass even with no transaction. We replaced it with a **multi-process race test**.
 - **Mutation-tested the critical guarantee.** To prove the new test actually guards against double-booking, I had the AI temporarily break the code two ways. A *deferred* transaction made the test fail with `SQLITE_BUSY` errors. *No transaction* let **all four processes book the same technician**. The code was then restored and the suite re-run green.

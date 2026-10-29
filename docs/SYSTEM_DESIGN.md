@@ -211,7 +211,7 @@ Targets come from decision D4: about 50 dealerships and 5,000 bookings a day (ab
 | **Scalability (data)** | Indefinite retention (D6): about 1.8M appointment rows a year for the group, about 36k a year per dealership | Hot queries are scoped to one dealership and a time window | Benchmark at 0 / 100k / 500k rows; `test/query-plan.test.ts` | Query latency no longer depends on history, but storage and backup size still grow without bound (§5.5). |
 | **Observability** | Diagnose any failed booking from its request ID; alert before SLO breach | Structured logs, correlation ID, RED + business metrics (§6) | `test/health.test.ts` checks metrics and request-ID propagation | No distributed tracing yet (§6). |
 | **Security / privacy** | Least privilege; no PII leakage; lawful retention | Gateway authentication, dealership-scoped authorisation, validated input, no PII in logs (§7) | Schema-validation tests (400 on unknown fields) | Authentication isn't implemented in the prototype (A10). Residency risk from D8. |
-| **Maintainability** | A business-rule change touches one layer and one test file | Pure domain layer; schema-driven validation, types and OpenAPI (§5.4) | 79 tests; layered test suite (§8) | — |
+| **Maintainability** | A business-rule change touches one layer and one test file | Pure domain layer; schema-driven validation, types and OpenAPI (§5.4) | 83 tests; layered test suite (§8) | — |
 
 **Benchmark** (MacBook, Node 25, file-backed SQLite in WAL mode, 2,000 bookings for one dealership, with past appointments preloaded), before and after the fix described below:
 
