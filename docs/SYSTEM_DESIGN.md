@@ -140,7 +140,7 @@ Indexes on `appointments`: `(technician_id, starts_at)`, `(service_bay_id, start
 | `GET /v1/dealerships`, `GET /v1/service-types` | Reference data |
 | `GET /health`, `/ready`, `/metrics`, `/docs` | Ops |
 
-Error semantics: **400** malformed request · **404** unknown entity · **409** valid request but a resource conflict (no technician, no bay, vehicle already booked) · **422** violates a business rule (past time, outside hours, vehicle not owned by customer, nobody qualified, idempotency key reused). Clients can treat 409 as "try another time" and 422 as "fix the request". Full contract: [`docs/openapi.json`](openapi.json).
+Error semantics: **400** malformed request · **404** unknown entity · **409** valid request but a conflict (no technician, no bay, vehicle already booked, appointment already started when cancelling) · **422** violates a business rule (past time, beyond the 90-day horizon, outside hours, vehicle not owned by customer, nobody qualified, idempotency key reused). Clients can treat 409 as "try another time" and 422 as "fix the request". Full contract: [`docs/openapi.json`](openapi.json).
 
 ---
 
@@ -314,16 +314,18 @@ A fixed clock is injected (`now`), so date-dependent tests are deterministic.
 
 ## 9. How GenAI was used in the design phase
 
-I used Claude Code as a design partner and made the decisions myself.
+I used Claude Code as a design partner. It drafted options, documents and diagrams; I made the product decisions. Full process: the README's AI Collaboration Narrative.
 
-1. **Framing the brief.** I gave the AI the full brief and my existing scaffold (Fastify + TypeScript + Vitest). It inspected the repo before proposing anything. That inspection also found a real bug in my `tsconfig.json`: the `include` path pointed at `service-scheduler/src` from inside `service-scheduler`, so typecheck skipped all source files.
-2. **Forcing explicit decisions.** Instead of letting the AI pick silently, I had it present the decisions that shape the architecture as options with trade-offs, and I chose:
-   - Database: **SQLite + Drizzle** (zero setup for reviewers, Postgres as the documented production target) over Postgres + Prisma.
-   - Concurrency: **transaction + overlap check** over fixed slot-locking (supports arbitrary durations).
-   - Extras: OpenAPI/Swagger, seed + cURL demo, metrics, availability query endpoint.
-3. **Surfacing ambiguity.** I asked the AI to list everything the brief leaves open. Those became assumptions A1–A11 above. I reviewed each one, for example insisting on dealership-local timezones rather than "assume UTC", and rejecting unknown request fields rather than silently stripping them.
-4. **Challenging the design.** The AI's first concurrency test ran concurrent requests in one process. On review it pointed out that better-sqlite3 is synchronous, so that test could never fail and proved nothing. The design was changed to include a **multi-process race test**, plus **mutation testing of that test** to show it catches the bug.
-5. **Diagrams and documentation.** The AI drafted the Mermaid diagrams and this document. I edited them for accuracy against the actual code.
+1. **Framing the brief.** I gave the AI the full brief and my existing scaffold (Fastify + TypeScript + Vitest). It inspected the repo before proposing anything, and found a real bug in my `tsconfig.json`: the `include` path pointed at `service-scheduler/src` from inside `service-scheduler`, so typecheck skipped all source files.
+2. **Forcing explicit decisions.** I had the AI present the architecture-shaping choices as options with trade-offs, and I chose:
+   - Database: **SQLite + Drizzle** (zero setup for reviewers, PostgreSQL as the documented production target) over PostgreSQL + Prisma.
+   - Concurrency: **transaction + overlap check** over fixed slot locking (supports any duration).
+   - Extras: OpenAPI/Swagger, seed + cURL demo, metrics, availability endpoint.
+3. **Assumptions, then decisions.** The AI wrote down everything the brief leaves open as assumptions A1–A11, including its own choices of dealership-local timezones and rejecting unknown request fields. I then asked it to put the open questions to me rather than assume. Two rounds of structured questions produced decisions D1–D8 (§1). For recovery, retention and deployment I picked the simpler option, and asked for the recommended production design to be recorded with upgrade triggers (§5.5).
+4. **Challenging the design with evidence.**
+   - The AI's first concurrency test could never fail (better-sqlite3 is synchronous), so the design gained a **multi-process race test**, mutation-tested to prove it catches double-booking.
+   - Before committing to performance targets, the AI **benchmarked** instead of trusting its earlier "about 1 ms" claim. That exposed a history-proportional query scan (53 ms at 500k rows), which was fixed and is now guarded (§5.0).
+5. **Diagrams and documentation.** The AI drafted the Mermaid diagrams and this document. In a final pass it rechecked them against the code, and corrected claims that had drifted or were never true.
 
 ---
 

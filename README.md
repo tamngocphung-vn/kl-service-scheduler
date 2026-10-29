@@ -80,7 +80,7 @@ curl localhost:3000/metrics | grep appointment_booking                        # 
 | `GET /health`, `GET /ready`, `GET /metrics`, `GET /docs` | Liveness, readiness (DB), Prometheus, Swagger UI |
 
 Errors share one envelope: `{"error": {"code", "message", "details?", "requestId"}}`.
-**400** invalid request · **404** unknown entity · **409** resource conflict (`NO_TECHNICIAN_AVAILABLE`, `NO_BAY_AVAILABLE`, `VEHICLE_ALREADY_BOOKED`) · **422** business-rule violation (`START_TIME_IN_PAST`, `BEYOND_BOOKING_HORIZON`, `OUTSIDE_OPERATING_HOURS`, `VEHICLE_NOT_OWNED_BY_CUSTOMER`, `NO_QUALIFIED_TECHNICIAN`, `IDEMPOTENCY_KEY_REUSED`).
+**400** invalid request · **404** unknown entity · **409** conflict (`NO_TECHNICIAN_AVAILABLE`, `NO_BAY_AVAILABLE`, `VEHICLE_ALREADY_BOOKED`, `APPOINTMENT_NOT_CANCELLABLE`) · **422** business-rule violation (`START_TIME_IN_PAST`, `BEYOND_BOOKING_HORIZON`, `OUTSIDE_OPERATING_HOURS`, `VEHICLE_NOT_OWNED_BY_CUSTOMER`, `NO_QUALIFIED_TECHNICIAN`, `IDEMPOTENCY_KEY_REUSED`).
 
 ## Project structure
 
@@ -98,8 +98,11 @@ src/
   observability/metrics.ts  Prometheus metrics
 drizzle/                    Versioned SQL migrations
 scripts/                    seed, demo (cURL), OpenAPI export
-test/                       unit, API integration, multi-process concurrency tests
+test/                       unit, API integration, multi-process concurrency and query-plan tests
 docs/                       System design document, OpenAPI spec
+Dockerfile, docker-compose.yml, tsconfig.build.json   Container image and production build
+CLAUDE.md                   Rules every Claude Code session loads (see AI Collaboration Narrative)
+.claude/                    Hooks, test-runner subagent, skills, LESSONS.md, feature-map.md
 ```
 
 ## Testing
@@ -118,35 +121,59 @@ npm test
 
 ## AI Collaboration Narrative
 
-> I built this with **Claude Code** (an agentic coding assistant in VS Code) as the implementer. I acted as architect and reviewer.
+> I built this with **Claude Code** (an agentic coding assistant in VS Code). The AI wrote most of the code and documents. I set the direction, made the product decisions, and approved every step before it was committed. Sentences marked **[CHECK]** are ones I still need to confirm before submitting.
 
-### Strategy: decide first, then delegate
+### Strategy
 
-I didn't ask the AI to "build a scheduler". I started from my own scaffold (Fastify + TypeScript + Vitest), gave it the full brief, and had it **inspect the repo before writing anything**. It then put the decisions that shape the architecture in front of me as explicit options with trade-offs: database (SQLite + Drizzle vs Postgres + Prisma), concurrency control (transactional overlap check vs slot locking), sequencing (doc first vs code first), and scope extras. I made those calls, and the AI implemented against them. I also had it state every ambiguity in the brief as a written assumption (design doc §1) so I could accept or overrule each one. For example, I chose dealership-local timezones over "assume UTC".
+**1. Decide first, then delegate.** I gave the AI the brief and my own scaffold (Fastify + TypeScript + Vitest). It inspected the repo before writing anything, which immediately caught a bug in my `tsconfig.json`. It then put the architecture-shaping choices to me as options with trade-offs. I chose SQLite + Drizzle over Postgres + Prisma (zero setup for reviewers), a transactional overlap check over slot locking (supports any duration), design doc and code together, and four scope extras (availability endpoint, OpenAPI, seed + cURL demo, metrics).
 
-I asked for a deliberate layering that makes the AI's output easy to verify: **pure domain functions** (no I/O, unit-testable) → a **service** that owns transactions → **thin routes** whose TypeBox schemas generate validation, types *and* the OpenAPI doc. Review effort could then go to ~150 lines of business rules rather than the whole codebase.
+**2. After the first build, I took tighter control.** The first pass produced a lot in one go. I redirected the work to **one reviewable step at a time**: the AI finishes a step, summarises it, proposes the next, and stops for my review. I also told it to **ask me about ambiguity instead of assuming**, to **focus on the core** requirements rather than extras, and to run tests in a **subagent** so the main context stays small. The history from `2878080` onwards is that loop: one step per commit, committed only when I said so. The last two (`bf89a4d`, `1a69c3f`) I approved for commit with a review to follow. **[CHECK]** Remove this sentence once you've reviewed them.
 
-### Verification: trust nothing that hasn't been seen to fail
+**3. Product decisions are mine and written down.** The AI asked me two rounds of structured questions. My answers are decisions D1–D8 in the design doc (§1): a service advisor books, the system assigns technicians and bays, dealer-group scale targets, dealership-hours-only staffing, recovery targets, retention, a 90-day booking horizon and a single global deployment. For recovery, retention and deployment I deliberately chose the **simpler** option for the prototype, against the AI's recommendation. I then asked for its recommended production design to be written up with **measurable triggers for when to upgrade** (§5.5), so the trade-off is planned, not accidental.
 
-- **Type check + full test run after every change.** 83 tests, against a real SQLite database rather than mocks.
-- **Ran the real thing.** I seeded a database, started the server, and ran the cURL demo end to end. I checked the status codes, the assigned technicians and bays, the structured log lines and the metric counters by eye.
-- **Caught a test that couldn't fail.** The first concurrency test fired parallel HTTP requests in one process. On review, the AI and I recognised it was meaningless: better-sqlite3 is synchronous, so those requests never interleave, and the test would pass even with no transaction. We replaced it with a **multi-process race test**.
-- **Mutation-tested the critical guarantee.** To prove the new test actually guards against double-booking, I had the AI temporarily break the code two ways. A *deferred* transaction made the test fail with `SQLITE_BUSY` errors. *No transaction* let **all four processes book the same technician**. The code was then restored and the suite re-run green.
+**4. Shared conventions in the repo; personal progress out of it.** The AI suggested a `PROGRESS.md` to carry "where we left off" between sessions. I asked whether it would still work with more people on the project. It wouldn't (merge conflicts, a single "current step"), so progress stays in the AI's private memory, and everything that does carry over to a team is committed in `.claude/`.
+
+### The AI workflow committed in this repo
+
+| Piece | What it does | Why |
+|---|---|---|
+| `CLAUDE.md` | Core requirements (verbatim from the brief), architecture rules, frozen scope, how to work, which skill to use when | Every session, and every teammate's AI, starts with the same rules |
+| Typecheck hook (`.claude/settings.json`) | After every `.ts` edit the project is type-checked and errors go straight back to the AI | Mistakes are caught at the edit, not at the end |
+| SessionStart hook + `.claude/LESSONS.md` | Lessons from past mistakes are loaded into every new session | A **self-improvement loop**: a mistake made once is written down, not repeated |
+| `test-runner` subagent | Runs typecheck and tests and returns only a short pass/fail summary | Keeps long test output out of the main conversation |
+| Project skills: `verify`, `add-business-rule`, `retro` | Definition of done; red test → domain → service → docs; turning corrections into lessons | Repeatable process instead of ad-hoc prompting |
+| Engineering skills (from `addyosmani/agent-skills`, provenance in `skills-lock.json`) | TDD, code review, simplification, git workflow, performance, ADRs and more, mapped to tasks in `CLAUDE.md` | I added the pack and asked for it to be wired into the workflow; heavier processes stay opt-in |
+| `.claude/feature-map.md` | Each requirement and business rule → code → tests | A reviewer, or the AI, can find what proves each requirement |
+
+The AI drafted these files. I added the brief's core requirements to `CLAUDE.md` word for word, so every session works from the exact acceptance criteria rather than a paraphrase. When auto mode blocked the AI from writing its own `settings.json` (it changes the AI's own behaviour), I created that file myself. The hooks were tested by piping sample input into them. **[CHECK]** Seeing them fire live in a session opened from this folder is still to be demonstrated.
+
+### Verification: nothing counts until it has been seen to fail
+
+- **Real database, real server.** 83 tests run against SQLite rather than mocks. Each step ended with the AI seeding a database, starting the server and running the cURL demo, then reporting the status codes, logs and metrics. **[CHECK]** Add whether you also watched these runs yourself.
+- **Mutation testing.** For every test guarding something important, the AI broke the code on purpose and confirmed the test failed:
+  - No transaction let **4 separate processes book the same technician**, which the race test catches.
+  - Setting the query's lower bound to zero failed **9 tests**.
+  - Removing the active-technician, active-bay, cross-dealership-vehicle and cancel-after-start checks each failed **exactly the one test** written for it. Before those tests existed, all four bugs would have passed the whole suite.
+- **Measured, not assumed.** Before writing the non-functional section, the AI benchmarked bookings instead of trusting its own earlier claim of "about 1 ms". The real figure was **53 ms at 500k past appointments**, growing linearly, because the overlap query had no lower bound. One added condition made it flat (about 0.35 ms at any history size). A query-plan test now guards it.
 
 ### Corrections made during review
 
-| Issue found | Resolution |
-|---|---|
-| My scaffold's `tsconfig.json` `include` pointed at a non-existent path, so `typecheck` silently checked no source files | Fixed before any feature work |
-| Fastify's default Ajv config **silently strips** unknown fields, so a client sending `technicianId` would get a 201 and believe its choice was honoured (surfaced by a failing test) | Changed config to **reject** unknown fields (400) instead of weakening the test |
-| A test written to cover "checks the whole duration" set up a confusing four-booking scenario that was hard to verify by reading | Rewritten as two clear boundary cases (starts during / runs into an existing booking) |
-| Date regex accepted impossible dates like `2026-02-30`, which `Date.UTC` would silently roll over | Added real calendar validation and a test |
-| Demo script's output helper was over-engineered and broke under `set -o pipefail` | Simplified and re-run against the live server |
-| During mutation testing, the AI's backup copy of the source file failed (wrong temp directory), leaving the mutated code in place | Caught from the command output and reverted by hand. Grepped to confirm no mutation remained, then re-ran all tests. This is a reminder to verify the AI's housekeeping steps, not just its code. |
+| Issue | How it was caught | Resolution |
+|---|---|---|
+| `tsconfig.json` `include` pointed at a non-existent path, so typecheck checked no source files | AI read the scaffold first | Fixed before feature work |
+| Fastify silently stripped unknown fields, so a client's `technicianId` would be ignored with a 201 | A test failed | Config changed to reject unknown fields (400); the test was kept, not weakened |
+| The first concurrency test could never fail (better-sqlite3 is synchronous) | Review of the test itself | Replaced by a multi-process race test, then mutation-tested |
+| The AI's backup copy during mutation testing failed silently, leaving broken code in place | Command output | Reverted by hand and re-tested. Lesson: back up with git, not temp copies |
+| Design doc claimed "about 1 ms per booking" without measuring | Benchmark | Real cause found and fixed (see above) |
+| Several AI-written doc claims weren't true (e.g. logs "include booking times") | AI rereading its own diff before review | Corrected before commit |
+| Four gaps where core behaviour had no test | Step 3 scope review against the feature map | Tests added and mutation-checked; dead code removed |
+| An earlier draft of **this narrative** credited me with choices the AI had made (timezones, layering, running the mutation tests) | Final consistency pass | Rewritten from git history and the session record |
 
 ### Ownership
 
-Every design decision in this repo is one I made or explicitly accepted, and I can explain each line of the domain and service layers. The AI's speed went into boilerplate, test breadth and documentation drafts. My time went into the parts where a mistake costs real money: the concurrency guarantee, the time maths and the API contract.
+**[CHECK]** I chose the stack, scope and every product decision (D1–D8), and approved each step before it was committed. The AI's speed went into code, test breadth and drafts. My review went into the decisions and the trade-offs. **[CHECK]** I can explain the booking transaction, the overlap rule and the timezone handling without the AI.
+
+**[CHECK]** Still to do before submission: run `docker compose up --build` (the container setup is verified only outside Docker so far) and demonstrate the hooks firing live.
 
 ## Known limitations
 

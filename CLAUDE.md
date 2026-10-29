@@ -46,8 +46,8 @@ Project skills: `add-business-rule` (booking rule changes), `verify` (definition
 | Changing an endpoint, request/response shape or error code | `api-and-interface-design` | Keep the `/v1` contract backward compatible; regenerate `docs/openapi.json`. |
 | Before every commit | `code-review-and-quality`, then `code-simplification` if the review flags complexity | Run from `verify` step 4. |
 | Committing, splitting work into commits, pushing | `git-workflow-and-versioning` | Never `git reset --hard` or force-push without the user's explicit approval. |
-| Performance claims or fixes | `performance-optimization` | Measure first (see the benchmark in `SYSTEM_DESIGN.md` §5.0). |
-| Recording a design decision | `documentation-and-adrs` | Decisions live in `SYSTEM_DESIGN.md` §1 (D-numbers), not in separate ADR files. |
+| Performance claims or fixes | `performance-optimization` | Measure first (see the benchmark in `docs/SYSTEM_DESIGN.md` §5.0). |
+| Recording a design decision | `documentation-and-adrs` | Decisions live in `docs/SYSTEM_DESIGN.md` §1 (D-numbers), not in separate ADR files. |
 | Setting up or tuning `CLAUDE.md`, skills or context | `context-engineering` | |
 | Only when the user asks | `planning-and-task-breakdown`, `constraint-driven-development`, `doubt-driven-development` | Heavier processes (extra files, adversarial sub-reviews). Not on by default. |
 

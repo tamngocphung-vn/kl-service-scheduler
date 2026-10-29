@@ -15,5 +15,7 @@ Loaded into every session by the `SessionStart` hook. Maintained with the `retro
 - **Validate dates semantically, not just by regex.** `Date.UTC` silently rolls `2026-02-30` over to March. (2026-10-29)
 
 ## Working with the user
+- **Never attribute actions or decisions to the user that the record doesn't show.** The first AI-collaboration narrative was written in the user's voice and credited them with choices the AI had made. Write from evidence (git log, the user's own messages) and mark anything only the user can confirm with **[CHECK]**. (2026-10-29)
+- **When the user defers review ("commit now, I'll check later"), say so in the docs and commit messages.** Don't imply a review happened. (2026-10-29)
 - **Work one reviewable step at a time.** Finish, summarise, propose the next step, then stop. (2026-10-29)
 - **Ask about ambiguous requirements; don't assume.** Record each answer as an assumption in `docs/SYSTEM_DESIGN.md` §1. (2026-10-29)
