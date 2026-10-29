@@ -101,6 +101,7 @@ scripts/                    seed, demo (cURL), OpenAPI export
 test/                       unit, API integration, multi-process concurrency and query-plan tests
 docs/                       System design document, OpenAPI spec
 Dockerfile, docker-compose.yml, tsconfig.build.json   Container image and production build
+CHANGELOG.md                Release notes per version (semver; tags vX.Y.Z)
 CLAUDE.md                   Rules every Claude Code session loads (see AI Collaboration Narrative)
 .claude/                    Hooks, test-runner subagent, skills, LESSONS.md, feature-map.md
 ```
