@@ -93,7 +93,7 @@ src/
     time.ts                   IANA timezone ↔ UTC conversion (DST-safe, via Intl)
     errors.ts                 AppError + stable error codes
   services/scheduling-service.ts   Use cases; atomic check-and-book transaction; idempotency
-  routes/                   HTTP routes + TypeBox schemas (validation, types and OpenAPI from one source)
+  routes/v1/                HTTP routes + TypeBox schemas for /v1 (validation, types and OpenAPI from one source)
   db/                       Drizzle schema, connection + migrations, seed data
   observability/metrics.ts  Prometheus metrics
 drizzle/                    Versioned SQL migrations

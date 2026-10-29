@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import Fastify, { type FastifyServerOptions } from "fastify";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -7,10 +8,13 @@ import { sql } from "drizzle-orm";
 import type { Db } from "./db/client.js";
 import { AppError } from "./domain/errors.js";
 import { createMetrics } from "./observability/metrics.js";
-import { appointmentRoutes } from "./routes/appointments.js";
-import { referenceRoutes } from "./routes/reference.js";
-import { Appointment, ErrorResponse } from "./routes/schemas.js";
+import { v1Routes } from "./routes/v1/index.js";
+import { Appointment, ErrorResponse } from "./routes/v1/schemas.js";
 import { SchedulingService, type SchedulingServiceOptions } from "./services/scheduling-service.js";
+
+// package.json is the single source of the release version. "../package.json" resolves from
+// both src/ (tsx) and dist/ (production build); the Docker image copies it next to dist/.
+const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 
 export interface AppOptions extends SchedulingServiceOptions {
   db: Db;
@@ -69,7 +73,7 @@ export async function buildApp({ db, logger, ...serviceOpts }: AppOptions) {
     openapi: {
       info: {
         title: "Unified Service Scheduler API",
-        version: "1.0.0",
+        version,
         description: "Book dealership service appointments against technician and service-bay availability.",
       },
       tags: [
@@ -97,13 +101,7 @@ export async function buildApp({ db, logger, ...serviceOpts }: AppOptions) {
     return metrics.registry.metrics();
   });
 
-  await app.register(
-    async (v1) => {
-      await v1.register(appointmentRoutes, { service, metrics });
-      await v1.register(referenceRoutes, { db });
-    },
-    { prefix: "/v1" },
-  );
+  await app.register(v1Routes, { prefix: "/v1", service, metrics, db });
 
   return app;
 }

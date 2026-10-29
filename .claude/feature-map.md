@@ -6,7 +6,7 @@ Maps each requirement to the code that implements it and the tests that prove it
 
 | # | Requirement | Code | Tests |
 |---|---|---|---|
-| R1 | Request an appointment for a vehicle, service type, dealership and time | `POST /v1/appointments` in `src/routes/appointments.ts` → `SchedulingService.book()` in `src/services/scheduling-service.ts` | `test/appointments.api.test.ts` › "successful booking", "validation" |
+| R1 | Request an appointment for a vehicle, service type, dealership and time | `POST /v1/appointments` in `src/routes/v1/appointments.ts` → `SchedulingService.book()` in `src/services/scheduling-service.ts` | `test/appointments.api.test.ts` › "successful booking", "validation" |
 | R2 | Check a **qualified technician** and a **bay** are both free for the **whole duration** | `candidates()` + `busyBlocks()` in the service; `findFreeResources()`, `overlaps()` in `src/domain/scheduling.ts`; run inside `BEGIN IMMEDIATE` | `test/scheduling.test.ts` › overlaps, findFreeResources; `appointments.api.test.ts` › "resource availability"; `test/concurrency.test.ts` |
 | R3 | Persist an appointment linking customer, vehicle, technician and bay | `appointments` table in `src/db/schema.ts`; insert in `book()` | `appointments.api.test.ts` › "persists the appointment so it can be read back" |
 

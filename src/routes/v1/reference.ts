@@ -1,8 +1,8 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { asc } from "drizzle-orm";
 import { Type } from "typebox";
-import type { Db } from "../db/client.js";
-import { dealerships, serviceTypes } from "../db/schema.js";
+import type { Db } from "../../db/client.js";
+import { dealerships, serviceTypes } from "../../db/schema.js";
 
 // Read-only lookups so API clients can discover valid IDs.
 export const referenceRoutes: FastifyPluginAsyncTypebox<{ db: Db }> = async (app, { db }) => {

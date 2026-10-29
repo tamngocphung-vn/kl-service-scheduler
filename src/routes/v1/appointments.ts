@@ -1,8 +1,8 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { Type } from "typebox";
-import { AppError } from "../domain/errors.js";
-import type { Metrics } from "../observability/metrics.js";
-import type { SchedulingService } from "../services/scheduling-service.js";
+import { AppError } from "../../domain/errors.js";
+import type { Metrics } from "../../observability/metrics.js";
+import type { SchedulingService } from "../../services/scheduling-service.js";
 import { BookAppointmentBody, Id, LocalDate, errorResponses } from "./schemas.js";
 
 interface Options {

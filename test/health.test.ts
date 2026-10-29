@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { createTestApp } from "./helpers.js";
 
@@ -49,5 +50,11 @@ describe("operational endpoints", () => {
     const res = await ctx.app.inject({ method: "GET", url: "/docs/json" });
     expect(res.statusCode).toBe(200);
     expect(res.json().paths).toHaveProperty("/v1/appointments");
+  });
+
+  it("reports the package.json version in the OpenAPI document", async () => {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const res = await ctx.app.inject({ method: "GET", url: "/docs/json" });
+    expect(res.json().info.version).toBe(pkg.version);
   });
 });

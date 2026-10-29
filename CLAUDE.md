@@ -20,7 +20,7 @@ service bay.
 - `npm run db:generate`: new migration after editing `src/db/schema.ts`. Never hand-edit `drizzle/`.
 
 ## Architecture rules
-- Layers: `routes/` (thin, TypeBox schemas) → `services/` (I/O, transactions) → `domain/` (pure rules, no I/O, no clock).
+- Layers: `routes/v1/` (thin, TypeBox schemas; a breaking change gets a sibling `v2/`) → `services/` (I/O, transactions) → `domain/` (pure rules, no I/O, no clock).
 - Every check that decides a booking runs **inside** the `BEGIN IMMEDIATE` transaction in `SchedulingService.book()`.
 - Times are UTC epoch ms internally, half-open `[start, end)`. Opening hours are in the dealership's IANA timezone.
 - Errors: throw `AppError` with a stable `ErrorCode`. Use 409 for a resource conflict and 422 for a business-rule violation.
