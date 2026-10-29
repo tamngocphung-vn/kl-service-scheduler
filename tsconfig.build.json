@@ -1,0 +1,9 @@
+{
+  // Production build: only src/, emitted so dist/db/client.js still resolves ../../drizzle.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}

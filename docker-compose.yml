@@ -1,0 +1,18 @@
+services:
+  scheduler:
+    build: .
+    image: kl-service-scheduler:local
+    ports:
+      - "3000:3000"
+    environment:
+      # Loads the demo dealerships, technicians, bays, customers and vehicles (idempotent).
+      SEED_DEMO_DATA: "true"
+      LOG_LEVEL: info
+    volumes:
+      # SQLite file survives container restarts and rebuilds.
+      - scheduler-data:/data
+    init: true
+    restart: unless-stopped
+
+volumes:
+  scheduler-data:

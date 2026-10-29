@@ -191,6 +191,7 @@ sequenceDiagram
 | **prom-client** | De-facto Prometheus client. Provides RED metrics and business counters. |
 | **@fastify/swagger + swagger-ui** | Live, interactive API contract at `/docs`. Serves as the client stub. |
 | **Vitest** | Fast, TS-native test runner. |
+| **Docker (multi-stage) + Compose** | One-command start for reviewers. The runtime image holds only compiled JS and production dependencies, runs as a non-root user, has a `/ready` healthcheck, and keeps SQLite on a named volume. The same image is the deployable unit for the production target (§2.2). |
 | **Intl API for timezones** | Correct DST handling with no extra date library (Temporal isn't available in Node yet). |
 
 ---

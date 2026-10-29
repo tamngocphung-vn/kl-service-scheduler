@@ -8,7 +8,17 @@ Backend service for **Keyloop Technical Assessment, Scenario A**. It books deale
 
 ## Quick start
 
-Requires **Node.js 22+** (developed on Node 25). No Docker or external database needed.
+### Option A: Docker (one command)
+
+```bash
+docker compose up --build    # http://localhost:3000  (Swagger UI at /docs)
+```
+
+The container compiles the TypeScript, runs as a non-root user, loads the demo data on first start (`SEED_DEMO_DATA=true`) and keeps the SQLite file in the named volume `scheduler-data`, so bookings survive restarts. A healthcheck polls `/ready`. Start from a clean database with `docker compose down -v`.
+
+### Option B: Node.js
+
+Requires **Node.js 22+** (developed on Node 25). No external database needed.
 
 ```bash
 npm install
@@ -16,7 +26,9 @@ npm run seed          # creates ./data/scheduler.db with demo dealerships, techn
 npm start             # http://localhost:3000  (Swagger UI at /docs)
 ```
 
-In a second terminal:
+### Try it
+
+With the server running (either option), in a second terminal:
 
 ```bash
 npm run demo          # scripted cURL walkthrough of the booking flow (uses jq if installed)
@@ -27,10 +39,11 @@ npm run demo          # scripted cURL walkthrough of the booking flow (uses jq i
 | `npm run dev` | Start with auto-reload |
 | `npm test` | Run the full test suite |
 | `npm run typecheck` | TypeScript type check |
+| `npm run build` / `npm run start:prod` | Compile to `dist/` and run the compiled server (what the container runs) |
 | `npm run openapi` | Regenerate `docs/openapi.json` from the route schemas |
 | `npm run db:generate` | Generate a new SQL migration after editing `src/db/schema.ts` |
 
-Configuration (environment variables): `PORT` (default `3000`), `DATABASE_PATH` (default `./data/scheduler.db`), `LOG_LEVEL` (default `info`). Migrations are applied automatically on start-up.
+Configuration (environment variables): `PORT` (default `3000`), `DATABASE_PATH` (default `./data/scheduler.db`; `/data/scheduler.db` in the container), `LOG_LEVEL` (default `info`), `SEED_DEMO_DATA` (`true` loads demo data at start-up; safe to repeat). Migrations are applied automatically on start-up.
 
 ## Using the API
 
