@@ -10,6 +10,8 @@ export type Db = BetterSQLite3Database<typeof schema>;
 
 export interface DbHandle {
   db: Db;
+  /** Raw driver handle, for diagnostics such as EXPLAIN QUERY PLAN. */
+  sqlite: Database.Database;
   close(): void;
 }
 
@@ -32,5 +34,5 @@ export function openDatabase(path: string): DbHandle {
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: MIGRATIONS_DIR });
 
-  return { db, close: () => sqlite.close() };
+  return { db, sqlite, close: () => sqlite.close() };
 }

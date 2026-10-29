@@ -6,6 +6,14 @@ export interface Interval {
   end: number; // UTC epoch ms, exclusive
 }
 
+/**
+ * Upper bound on any appointment's length. Appointments must fit inside one business day
+ * (isWithinOperatingHours), so none can reach 24 h. Anything overlapping a window therefore
+ * starts after `window.start - MAX_APPOINTMENT_MS`, which lets overlap queries use a bounded
+ * index range instead of scanning all history.
+ */
+export const MAX_APPOINTMENT_MS = 24 * 60 * 60 * 1000;
+
 /** Half-open intervals: an appointment ending at 10:00 does not clash with one starting at 10:00. */
 export function overlaps(a: Interval, b: Interval): boolean {
   return a.start < b.end && b.start < a.end;

@@ -19,6 +19,7 @@ import {
   findFreeResources,
   isVehicleBusy,
   isWithinOperatingHours,
+  MAX_APPOINTMENT_MS,
   type BusyBlock,
   type FreeResources,
   type Interval,
@@ -77,6 +78,35 @@ function assertValidDate(date: string): void {
   if (!isValidLocalDate(date)) {
     throw new AppError(400, "VALIDATION_ERROR", `'${date}' is not a valid calendar date (YYYY-MM-DD)`);
   }
+}
+
+/**
+ * Confirmed appointments overlapping `window` at the dealership, plus (optionally) any
+ * overlapping appointment for the vehicle at another dealership.
+ * Exported so tests can check its query plan.
+ */
+export function busyBlocksQuery(conn: Conn, window: Interval, dealershipId: string, vehicleId?: string) {
+  const scope = vehicleId
+    ? or(eq(appointments.dealershipId, dealershipId), eq(appointments.vehicleId, vehicleId))
+    : eq(appointments.dealershipId, dealershipId);
+  return conn
+    .select({
+      start: appointments.startsAt,
+      end: appointments.endsAt,
+      technicianId: appointments.technicianId,
+      serviceBayId: appointments.serviceBayId,
+      vehicleId: appointments.vehicleId,
+    })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.status, "CONFIRMED"),
+        gt(appointments.startsAt, window.start - MAX_APPOINTMENT_MS),
+        lt(appointments.startsAt, window.end),
+        gt(appointments.endsAt, window.start),
+        scope,
+      ),
+    );
 }
 
 export class SchedulingService {
@@ -299,32 +329,8 @@ export class SchedulingService {
     return { technicianIds, serviceBayIds };
   }
 
-  /**
-   * Confirmed appointments overlapping `window` at the dealership, plus (optionally) any
-   * overlapping appointment for the vehicle at another dealership.
-   */
   private busyBlocks(conn: Conn, window: Interval, dealershipId: string, vehicleId?: string): BusyBlock[] {
-    const scope = vehicleId
-      ? or(eq(appointments.dealershipId, dealershipId), eq(appointments.vehicleId, vehicleId))
-      : eq(appointments.dealershipId, dealershipId);
-    return conn
-      .select({
-        start: appointments.startsAt,
-        end: appointments.endsAt,
-        technicianId: appointments.technicianId,
-        serviceBayId: appointments.serviceBayId,
-        vehicleId: appointments.vehicleId,
-      })
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.status, "CONFIRMED"),
-          lt(appointments.startsAt, window.end),
-          gt(appointments.endsAt, window.start),
-          scope,
-        ),
-      )
-      .all();
+    return busyBlocksQuery(conn, window, dealershipId, vehicleId).all();
   }
 
   /** A retried request with the same Idempotency-Key returns the original booking, unchanged. */
