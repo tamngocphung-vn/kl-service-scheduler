@@ -174,6 +174,21 @@ describe("POST /v1/appointments: validation", () => {
     expect(res.json().error.code).toBe("OUTSIDE_OPERATING_HOURS");
   });
 
+  it("accepts a booking just inside the 90-day horizon", async () => {
+    // NOW is 2026-11-01T00:00Z, so the horizon ends 2027-01-30T00:00Z.
+    const res = await book(booking({ startTime: "2027-01-29T09:00:00Z" }));
+    expect(res.statusCode).toBe(201);
+  });
+
+  it("rejects a booking more than 90 days ahead", async () => {
+    const res = await book(booking({ startTime: "2027-02-01T09:00:00Z" }));
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toMatchObject({
+      code: "BEYOND_BOOKING_HORIZON",
+      details: { horizonDays: 90, latestStartTime: "2027-01-30T00:00:00.000Z" },
+    });
+  });
+
   it("rejects a service no technician at the dealership is qualified for", async () => {
     const res = await book(booking({ dealershipId: "dlr-sydney", serviceTypeId: "svc-ev", startTime: "2026-11-02T00:00:00Z" }));
     expect(res.statusCode).toBe(422);
@@ -264,6 +279,12 @@ describe("GET /v1/dealerships/:id/availability", () => {
     expect(slots.length).toBeGreaterThan(0);
     const res = await book(booking({ ...MARIA, serviceTypeId: "svc-ev", startTime: slots[0].startTime }));
     expect(res.statusCode).toBe(201);
+  });
+
+  it("offers no slots beyond the 90-day horizon", async () => {
+    const res = await availability("serviceTypeId=svc-oil&date=2027-02-01");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().slots).toEqual([]);
   });
 
   it("rejects an impossible date", async () => {

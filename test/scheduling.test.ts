@@ -3,6 +3,7 @@ import {
   computeAvailableSlots,
   findFreeResources,
   isVehicleBusy,
+  isWithinBookingHorizon,
   isWithinOperatingHours,
   overlaps,
   type BusyBlock,
@@ -101,6 +102,7 @@ describe("computeAvailableSlots", () => {
     hours: london,
     candidates: { technicianIds: ["t1"], serviceBayIds: ["b1", "b2"] },
     notBefore: 0,
+    notAfter: Number.POSITIVE_INFINITY,
   };
 
   it("offers every step whose full duration fits before closing", () => {
@@ -136,8 +138,26 @@ describe("computeAvailableSlots", () => {
     expect(slots[0].start).toBe(t("12:30"));
   });
 
+  it("excludes slots starting after notAfter (booking horizon)", () => {
+    const slots = computeAvailableSlots({ ...base, busy: [], notAfter: t("09:00") });
+    expect(slots.map((s) => s.start)).toEqual([t("08:00"), t("08:30"), t("09:00")]);
+  });
+
   it("returns nothing when no technician is qualified", () => {
     const slots = computeAvailableSlots({ ...base, candidates: { technicianIds: [], serviceBayIds: ["b1"] }, busy: [] });
     expect(slots).toEqual([]);
+  });
+});
+
+describe("isWithinBookingHorizon", () => {
+  const now = Date.parse("2026-11-01T00:00:00Z");
+  const limit = Date.parse("2027-01-30T00:00:00Z"); // now + 90 days
+
+  it("allows a start exactly at the horizon", () => {
+    expect(isWithinBookingHorizon(limit, now, 90)).toBe(true);
+  });
+
+  it("rejects a start one millisecond beyond the horizon", () => {
+    expect(isWithinBookingHorizon(limit + 1, now, 90)).toBe(false);
   });
 });

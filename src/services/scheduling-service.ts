@@ -18,6 +18,7 @@ import {
   computeAvailableSlots,
   findFreeResources,
   isVehicleBusy,
+  isWithinBookingHorizon,
   isWithinOperatingHours,
   MAX_APPOINTMENT_MS,
   type BusyBlock,
@@ -55,6 +56,8 @@ export interface AppointmentView {
 export interface SchedulingServiceOptions {
   now?: () => number;
   slotStepMinutes?: number;
+  /** How far ahead an appointment may start (decision D7). */
+  bookingHorizonDays?: number;
 }
 
 export function toView(a: Appointment): AppointmentView {
@@ -112,6 +115,7 @@ export function busyBlocksQuery(conn: Conn, window: Interval, dealershipId: stri
 export class SchedulingService {
   private readonly now: () => number;
   private readonly slotStepMinutes: number;
+  private readonly bookingHorizonDays: number;
 
   constructor(
     private readonly db: Db,
@@ -119,6 +123,7 @@ export class SchedulingService {
   ) {
     this.now = opts.now ?? Date.now;
     this.slotStepMinutes = opts.slotStepMinutes ?? 15;
+    this.bookingHorizonDays = opts.bookingHorizonDays ?? 90;
   }
 
   /**
@@ -160,6 +165,17 @@ export class SchedulingService {
 
         if (start < this.now()) {
           throw new AppError(422, "START_TIME_IN_PAST", "Appointment start time must be in the future");
+        }
+        if (!isWithinBookingHorizon(start, this.now(), this.bookingHorizonDays)) {
+          throw new AppError(
+            422,
+            "BEYOND_BOOKING_HORIZON",
+            `Appointments can be booked at most ${this.bookingHorizonDays} days ahead`,
+            {
+              horizonDays: this.bookingHorizonDays,
+              latestStartTime: new Date(this.horizonEnd()).toISOString(),
+            },
+          );
         }
         if (!isWithinOperatingHours(window, dealership)) {
           throw new AppError(
@@ -280,6 +296,7 @@ export class SchedulingService {
       candidates: this.candidates(this.db, dealership.id, serviceType.id),
       busy: this.busyBlocks(this.db, day, dealership.id),
       notBefore: this.now(),
+      notAfter: this.horizonEnd(),
     });
 
     return {
@@ -295,6 +312,11 @@ export class SchedulingService {
         availableBays: s.availableBays,
       })),
     };
+  }
+
+  /** Latest instant an appointment may start (decision D7). */
+  private horizonEnd(): number {
+    return this.now() + minutesToMs(this.bookingHorizonDays * 24 * 60);
   }
 
   private requireDealership(conn: Conn, id: string): Dealership {

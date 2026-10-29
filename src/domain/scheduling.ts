@@ -39,6 +39,11 @@ export function isWithinOperatingHours(window: Interval, hours: OperatingHours):
   return window.start >= open && window.end <= close;
 }
 
+/** True when `start` is no later than `horizonDays` after `now` (the limit itself is allowed). */
+export function isWithinBookingHorizon(start: number, now: number, horizonDays: number): boolean {
+  return start <= now + horizonDays * 24 * 60 * 60 * 1000;
+}
+
 export interface FreeResources {
   technicianIds: string[];
   serviceBayIds: string[];
@@ -83,6 +88,7 @@ export interface SlotQuery {
   candidates: FreeResources;
   busy: readonly BusyBlock[];
   notBefore: number; // slots starting before this instant are excluded (i.e. "now")
+  notAfter: number; // slots starting after this instant are excluded (the booking horizon)
 }
 
 /** Enumerates every start time on `date` where a qualified technician AND a bay are both free. */
@@ -95,6 +101,7 @@ export function computeAvailableSlots(q: SlotQuery): Slot[] {
   const slots: Slot[] = [];
   for (let start = dayOpen; start + duration <= dayClose; start += step) {
     if (start < q.notBefore) continue;
+    if (start > q.notAfter) break;
     const window = { start, end: start + duration };
     const free = findFreeResources(window, q.candidates, q.busy);
     if (free.technicianIds.length > 0 && free.serviceBayIds.length > 0) {
