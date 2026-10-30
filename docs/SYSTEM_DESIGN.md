@@ -9,7 +9,7 @@
 | Document | Contents |
 |---|---|
 | **This file** | Requirements (functional and non-functional) and the architecture plan: diagram, components, data flow, technologies, observability, GenAI in the design phase |
-| [DECISIONS.md](DECISIONS.md) | Product decisions D1–D12 and assumptions A1–A11 |
+| [DECISIONS.md](DECISIONS.md) | Product decisions D1–D13 and assumptions A1–A11 |
 | [BUILD_FOR_THE_FUTURE.md](BUILD_FOR_THE_FUTURE.md) | Scalability, performance, reliability, maintainability and observability: what is built today and how it grows. Also upgrade triggers, security and privacy, testing |
 | [openapi.json](openapi.json) | Full API contract |
 
@@ -92,9 +92,10 @@ flowchart LR
   MQ --> N[Notifications service]
   MQ --> DMS[DMS / workshop planning]
   A1 & A2 -->|"OTLP: traces, metrics, logs"| OBS[Managed observability service<br/>dashboards, alerts, trace search]
+  SM[(AWS Secrets Manager)] -.->|"credentials at start-up"| A1 & A2
 ```
 
-The service is stateless, so it scales horizontally. The database is deployed separately as a managed, multi-zone service for scaling and availability. Concurrency correctness then moves from SQLite's single-writer lock to PostgreSQL constraints ([Build for the future §1](BUILD_FOR_THE_FUTURE.md#1-scalability)). Telemetry goes to a managed cloud service instead of a self-run monitoring stack (§6).
+The service is stateless, so it scales horizontally. The database is deployed separately as a managed, multi-zone service for scaling and availability. Concurrency correctness then moves from SQLite's single-writer lock to PostgreSQL constraints ([Build for the future §1](BUILD_FOR_THE_FUTURE.md#1-scalability)). Telemetry goes to a managed cloud service instead of a self-run monitoring stack (§6), and credentials come from AWS Secrets Manager at start-up (D13).
 
 ---
 
@@ -180,7 +181,7 @@ Every check that decides the booking runs inside the shaded transaction, so two 
 |---|---|---|
 | **Logs** | **Built.** Structured JSON (pino) on stdout. Every line carries `reqId`. Booking outcome logs include `appointmentId`, `dealershipId`, `technicianId`, `serviceBayId`, `outcome`. Unexpected errors are logged with a stack; client errors are not logged as errors. No names or contact details, only IDs. When tracing is on, every line also carries `trace_id`. | Collects stdout through the platform's log agent; search; 30-day retention; alert on error-level logs. |
 | **Metrics** | **Built.** `/metrics` in Prometheus format: `http_request_duration_seconds{method,route,status_code}` (RED), `appointment_booking_attempts_total{outcome}`, `appointment_booking_duration_seconds{outcome}` (includes lock wait), Node runtime metrics. | Managed Prometheus scrapes `/metrics`. Dashboards for booking success and conflict rates per dealership. |
-| **Traces** | **Built, off by default.** The OpenTelemetry Node SDK (`src/observability/tracing.ts`) loads before the app and instruments HTTP. An `appointment.book` span wraps each booking with its outcome and the dealership, service type, appointment, technician and bay IDs; customer and vehicle IDs are never put on spans (`test/tracing.test.ts`). Configured only through the standard `OTEL_*` environment variables: `npm run start:otel-demo` prints spans to the console as a local simulation, and a managed service is reached by setting the standard OTLP endpoint and API-key variables. On PostgreSQL, the driver's instrumentation will add a span per query. | Stores traces and links them to logs through `trace_id`. |
+| **Traces** | **Built, off by default.** The OpenTelemetry Node SDK (`src/observability/tracing.ts`) loads before the app and instruments HTTP. An `appointment.book` span wraps each booking with its outcome and the dealership, service type, appointment, technician and bay IDs; customer and vehicle IDs are never put on spans (`test/tracing.test.ts`). Configured only through the standard `OTEL_*` environment variables: `npm run start:otel-demo` prints spans to the console as a local simulation, and `config/example.env` shows the OTLP endpoint and a **fake** API key for a managed service. On PostgreSQL, the driver's instrumentation will add a span per query. | Stores traces and links them to logs through `trace_id`. |
 | **Correlation** | **Built.** `x-request-id` is accepted from upstream or generated, echoed in the response header and included in every error body, so a support ticket can be matched to the logs. When tracing is on, the W3C `traceparent` from the gateway is honoured, so the booking span joins the caller's trace. | End-to-end view from the gateway through the service to the database. |
 | **Health** | **Built.** `/health` (liveness) and `/ready` (database check). | The platform's probes restart or stop routing to an unhealthy instance. |
 | **Alerting** | Nothing in the code. | **SLO alerts (§1.2):** booking p95 > 1 s, 5xx rate > 0.1%, availability error-budget burn. Also alert on a spike in lock-wait latency (contention) or in `NO_*_AVAILABLE` (capacity planning signal). |
@@ -276,4 +277,4 @@ Full contract: [`docs/openapi.json`](openapi.json), or Swagger UI at `/docs`.
 
 **Planned upgrades with defined triggers:** continuous backup (RPO ≤ 1 min), 7-year retention with anonymisation, and regional deployments. See [Build for the future §6](BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers).
 
-**Feature backlog:** technician shifts, leave and breaks · bay capabilities · per-weekday hours and holidays · `preferredTechnicianId` and load-balanced allocation · atomic reschedule endpoint (keep the original if the new slot is taken) · nearest free slots returned with a `409` · outbox + domain events, then notifications (confirmation, reminder, cancellation) · Postgres exclusion constraints · availability cache in Redis (Build for the future §2) · auth · pagination on schedule listings · a frontend booking flow on top of `/availability`, with short-lived booking holds (expired lazily at query time) so a slot isn't taken while the form is being filled in.
+**Feature backlog:** technician shifts, leave and breaks · bay capabilities · per-weekday hours and holidays · `preferredTechnicianId` and load-balanced allocation · atomic reschedule endpoint (keep the original if the new slot is taken) · nearest free slots returned with a `409` · outbox + domain events, then notifications (confirmation, reminder, cancellation) · Postgres exclusion constraints · availability cache in Redis (Build for the future §2) · secrets in AWS Secrets Manager (D13) · auth · pagination on schedule listings · a frontend booking flow on top of `/availability`, with short-lived booking holds (expired lazily at query time) so a slot isn't taken while the form is being filled in.

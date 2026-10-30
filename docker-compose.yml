@@ -1,18 +1,21 @@
+# Runs one environment profile (config/<APP_ENV>.env); pre-prod by default, so the demo data is loaded.
+#   docker compose up --build                   pre-prod: demo data, fake OTLP endpoint and key
+#   APP_ENV=prod docker compose up --build      prod: empty database, fake OTLP endpoint and key
 services:
   scheduler:
     build: .
     image: kl-service-scheduler:local
     ports:
       - "3000:3000"
-    environment:
-      # Loads the demo dealerships, technicians, bays, customers and vehicles (idempotent).
-      SEED_DEMO_DATA: "true"
-      LOG_LEVEL: info
+    env_file:
+      - config/${APP_ENV:-pre-prod}.env
     volumes:
-      # SQLite file survives container restarts and rebuilds.
+      # The SQLite file survives restarts and rebuilds.
       - scheduler-data:/data
     init: true
     restart: unless-stopped
 
 volumes:
   scheduler-data:
+    # One volume per environment, so prod never starts with pre-prod's demo data.
+    name: scheduler-data-${APP_ENV:-pre-prod}

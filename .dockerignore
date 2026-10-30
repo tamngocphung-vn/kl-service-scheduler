@@ -13,3 +13,6 @@ scripts
 coverage
 .DS_Store
 npm-debug.log*
+# Configuration is injected at run time, never baked into the image.
+config/
+.env

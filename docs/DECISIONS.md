@@ -1,6 +1,6 @@
 # Decisions and assumptions
 
-Part of the [system design](SYSTEM_DESIGN.md). Decisions are referenced elsewhere by ID (D1–D12, A1–A11), so IDs are never reused or renumbered. New decisions are added at the end of the table.
+Part of the [system design](SYSTEM_DESIGN.md). Decisions are referenced elsewhere by ID (D1–D13, A1–A11), so IDs are never reused or renumbered. New decisions are added at the end of the table.
 
 ## Decisions confirmed with the product owner
 
@@ -20,6 +20,7 @@ The brief leaves these open. I put them to the product owner (myself, acting in 
 | D10 | **Non-functional targets** (recorded 2026-10-30): correctness before speed (zero double-bookings), 99.9% availability, booking and availability p95 < 1 s (booking p99 < 2 s), 10 bookings/s at peak with 5× bursts, and **UK/EU GDPR compliance**. | A tighter p95 < 300 ms | The latency budget leaves room for a separately deployed database and future pricing (e.g. holiday surcharges). GDPR turns the D6 retention upgrade, the D8 regional split, authentication, erasure and export into go-live prerequisites ([Build for the future §7](BUILD_FOR_THE_FUTURE.md#7-security-and-privacy)). |
 | D11 | **Observability on a managed cloud service** (recorded 2026-10-30). The code emits OpenTelemetry traces, Prometheus metrics and JSON logs; storage, dashboards and alerting are bought. The vendor is chosen at deployment. | Self-hosted Prometheus, log stack and Jaeger | Less to build and run. The work in the code is the OpenTelemetry SDK setup and one span around the booking transaction. Telemetry carries IDs only, and the vendor must store data in-region under a data-processing agreement (GDPR). |
 | D12 | **SQLite for the prototype, PostgreSQL for production** (chosen at project start). | PostgreSQL (with Prisma) from day one | SQLite uses the same relational SQL model, and Drizzle keeps the schema and queries portable, so the move is a dialect switch plus migrations. While requirements are still being settled (assumptions A1–A11), a zero-setup database keeps changes quick, and reviewers can run it with `npm install`. Trade-off: the concurrency guarantee doesn't port as-is. SQLite's single write lock becomes per-resource exclusion constraints on PostgreSQL ([Build for the future §1](BUILD_FOR_THE_FUTURE.md#1-scalability)). The move happens when a trigger in [§6](BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers) fires. |
+| D13 | **One configuration profile per environment; secrets to AWS Secrets Manager** (recorded 2026-10-30). `config/dev.env`, `config/pre-prod.env` and `config/prod.env` hold each environment's settings, with fake placeholders for any key. Before go-live, credentials such as database accounts move to AWS Secrets Manager. | A single `.env`; secrets in the orchestrator's config | Environments are reproducible and reviewable in git. The code reads only environment variables, so moving secrets to the manager needs no code change ([Build for the future §6](BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers)). |
 
 ## Assumptions (the brief leaves these open)
 

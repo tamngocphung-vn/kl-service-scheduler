@@ -5,11 +5,11 @@
   "main": "src/server.ts",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "dev": "tsx watch --env-file=config/dev.env --env-file-if-exists=config/local.env src/server.ts",
+    "start": "tsx --env-file=config/dev.env --env-file-if-exists=config/local.env src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start:prod": "node dist/server.js",
-    "seed": "tsx scripts/seed.ts",
+    "seed": "tsx --env-file=config/dev.env --env-file-if-exists=config/local.env scripts/seed.ts",
     "db:generate": "drizzle-kit generate",
     "openapi": "tsx scripts/export-openapi.ts",
     "demo": "bash scripts/demo.sh",
@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "docs:toc": "doctoc README.md --github --minlevel 2 --maxlevel 3 --title '**Contents**'",
-    "start:otel-demo": "OTEL_TRACES_EXPORTER=console OTEL_METRICS_EXPORTER=none OTEL_LOGS_EXPORTER=none tsx src/server.ts"
+    "start:otel-demo": "OTEL_TRACES_EXPORTER=console tsx --env-file=config/dev.env --env-file-if-exists=config/local.env src/server.ts"
   },
   "keywords": [],
   "author": "",

@@ -10,6 +10,8 @@ const dbPath = process.env.DATABASE_PATH ?? "./data/scheduler.db";
 const { db, close } = openDatabase(dbPath);
 const app = await buildApp({ db, logger: { level: process.env.LOG_LEVEL ?? "info" } });
 
+app.log.info({ env: process.env.APP_ENV ?? "unset", tracing: Boolean(tracingSdk) }, "starting");
+
 // Demo/container convenience: seeding is idempotent, so it is safe on every start.
 if (process.env.SEED_DEMO_DATA === "true") {
   seed(db);

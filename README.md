@@ -5,7 +5,7 @@ Backend for **Keyloop Technical Assessment, Scenario A**. It books a dealership 
 | Read | For |
 |---|---|
 | [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Requirements incl. non-functional (§1.2), architecture, components, data flow, technologies, observability, GenAI in design, API and errors (§8.2), future work |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Product decisions D1–D12 and assumptions |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Product decisions D1–D13 and assumptions |
 | [docs/BUILD_FOR_THE_FUTURE.md](docs/BUILD_FOR_THE_FUTURE.md) | Scalability, performance, reliability, maintainability, observability; upgrade triggers, security and privacy, testing (§4.1) |
 | [docs/openapi.json](docs/openapi.json) or `/docs` on a running server | Full API contract (Swagger UI) |
 | [CHANGELOG.md](CHANGELOG.md) | What each release contains, and the versioning policy |
@@ -33,11 +33,12 @@ Backend for **Keyloop Technical Assessment, Scenario A**. It books a dealership 
 ## Quick start
 
 ```bash
-# Option A: Docker
-docker compose up --build        # http://localhost:3000, demo data loaded; `down -v` resets it
+# Option A: Docker (pre-prod profile: demo data loaded)
+docker compose up --build                  # http://localhost:3000; `down -v` resets it
+APP_ENV=prod docker compose up --build     # prod profile: empty database
 
-# Option B: Node.js 22+ (no external database)
-npm install && npm run seed && npm start
+# Option B: Node.js 22+ (dev profile: demo data, no external database)
+npm install && npm start
 
 # Then, in a second terminal
 npm run demo                     # scripted cURL walkthrough of the booking flow
@@ -45,7 +46,7 @@ npm run demo                     # scripted cURL walkthrough of the booking flow
 
 Other commands: `npm test` · `npm run dev` (auto-reload) · `npm run typecheck` · `npm run build && npm run start:prod` (what the container runs) · `npm run openapi` (regenerate the contract) · `npm run start:otel-demo` (start with OpenTelemetry spans printed to the console) · `npm run docs:toc` (regenerate the contents list above) · `npm run db:generate` (new migration after editing `src/db/schema.ts`).
 
-Environment: `PORT` (3000) · `DATABASE_PATH` (`./data/scheduler.db`) · `LOG_LEVEL` (`info`) · `SEED_DEMO_DATA` (`true` loads demo data at start-up). Migrations run on start-up. Tracing is off unless `OTEL_*` variables are set; `npm run start:otel-demo` prints spans to the console.
+**Environments.** Configuration lives in [`config/`](config), one profile per environment: [`dev.env`](config/dev.env) (npm scripts), [`pre-prod.env`](config/pre-prod.env) and [`prod.env`](config/prod.env) (Docker Compose, chosen by `APP_ENV`). [`example.env`](config/example.env) documents every variable. Personal overrides and real secrets go in `config/local.env`, which is git-ignored and loaded after the profile; shell variables override both. Pre-prod and prod export traces to a **fake** OTLP endpoint with a **fake** key, to simulate a managed observability service; moving secrets to AWS Secrets Manager is a planned upgrade. Migrations run on start-up.
 
 ## API overview
 
@@ -212,6 +213,7 @@ In priority order.
 | First-fit allocation | **Load-balanced allocation** and an optional preferred technician | First-fit keeps loading the same technician, while others sit idle |
 | Changing a time means cancel, then rebook | **Atomic rescheduling** that keeps the original if the new slot is taken | Today the customer can lose their slot between the two calls |
 | A `409` only says "not available" | **Suggested slots:** the nearest free times returned with the `409` | Saves the advisor a second search; reuses the availability engine |
+| Configuration and fake keys live in committed profiles in `config/` | **Secrets in AWS Secrets Manager**, injected at start-up ([Build for the future §6](docs/BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers)) | Real credentials (database accounts, vendor API keys) never sit in git or images, can be rotated without a release, and every read is audited |
 | No notifications | **Confirmations, reminders and cancellations** via an outbox and domain events | Reminders reduce no-shows; the outbox makes sure no message is lost if a send fails |
 
 Full backlog, including booking holds for a multi-step UI: [design doc §9](docs/SYSTEM_DESIGN.md#9-future-work).
