@@ -9,7 +9,10 @@
   "hooks": {
     "PostToolUse": [
       { "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/typecheck.sh", "timeout": 60, "statusMessage": "Type-checking…" }] }
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/typecheck.sh", "timeout": 60, "statusMessage": "Type-checking…" },
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/readme-toc.sh", "timeout": 30, "statusMessage": "Updating README contents…" }
+        ] }
     ],
     "SessionStart": [
       { "hooks": [{ "type": "command", "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/LESSONS.md\"; [ -f \"$f\" ] && { echo 'Lessons learned in earlier sessions on this repo (apply them):'; cat \"$f\"; } || true" }] }

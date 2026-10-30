@@ -19,6 +19,6 @@ Don't claim a change works until every step below has passed in this session.
 4. **Review.** Use the `code-review-and-quality` skill to review the full diff (`git diff` plus untracked files) along its axes. Fix findings or list them for the user. If it flags complexity, use the `code-simplification` skill.
 5. **Docs drift.** If routes or schemas changed, run `npm run openapi` and check `.claude/feature-map.md` still points at the right files and tests. If a doc changed:
    - Render every Mermaid block it contains with mermaid-cli (`npx -y @mermaid-js/mermaid-cli@11.4.2 -i <block>.mmd -o <out>.svg`, run from the scratchpad). A diagram that reads fine as text can still fail to parse.
-   - If headings changed, run `npm run docs:toc`, and check that relative links and `#anchors` across `README.md` and `docs/` still resolve.
+   - If headings changed, check that relative links and `#anchors` across `README.md` and `docs/` still resolve. The README contents list is regenerated automatically by the `readme-toc.sh` hook after every README edit.
    - Re-read the changed lines as a reviewer: decisions and trade-offs only, no history of how they were reached (see `.claude/LESSONS.md`, Documentation).
 6. **Report.** Say what was run and what passed, and anything that was skipped.
