@@ -15,7 +15,8 @@
     "demo": "bash scripts/demo.sh",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docs:toc": "doctoc README.md --github --minlevel 2 --maxlevel 3 --title '**Contents**'"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
+    "doctoc": "^2.5.0",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

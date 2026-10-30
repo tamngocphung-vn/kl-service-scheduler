@@ -7,7 +7,7 @@ description: Add or change a booking or scheduling rule (e.g. a buffer between j
 
 The core rules live in pure functions so they're easy to review. Keep it that way.
 
-1. **Pin down the rule.** State it in one sentence, plus its edge cases (boundaries, timezones, back-to-back appointments). If it's ambiguous, ask the user. Don't guess. Record the decision as an assumption in `docs/SYSTEM_DESIGN.md` §1.
+1. **Pin down the rule.** State it in one sentence, plus its edge cases (boundaries, timezones, back-to-back appointments). If it's ambiguous, ask the user. Don't guess. Record the decision as an assumption in `docs/DECISIONS.md`.
 2. **Red test first** (follow the `test-driven-development` skill).
    - Pure logic: add a case to `test/scheduling.test.ts` (or `test/time.test.ts`).
    - Observable through the API: add a case to `test/appointments.api.test.ts` using the helpers in `test/helpers.ts`.

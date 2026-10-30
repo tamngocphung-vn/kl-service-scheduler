@@ -4,7 +4,7 @@ import { busyBlocksQuery } from "../src/services/scheduling-service.js";
 
 // Performance guard: the overlap query must bound starts_at on BOTH sides. With only an upper
 // bound, SQLite scans every past appointment at the dealership and booking latency grows with
-// history (measured: 0.4 ms with no history vs 53 ms at 500k rows; see SYSTEM_DESIGN §5.0).
+// history (measured: 0.4 ms with no history vs 53 ms at 500k rows; see docs/BUILD_FOR_THE_FUTURE.md §2).
 let handle: DbHandle;
 
 beforeEach(() => {
