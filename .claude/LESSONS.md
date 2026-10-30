@@ -14,8 +14,13 @@ Loaded into every session by the `SessionStart` hook. Maintained with the `retro
 - **Don't pipe through `head` in scripts that use `set -o pipefail`.** It kills the script with SIGPIPE. (2026-10-29)
 - **Validate dates semantically, not just by regex.** `Date.UTC` silently rolls `2026-02-30` over to March. (2026-10-29)
 
+## Documentation
+- **Write design docs as the final decision and its trade-off, not the discussion or history behind it.** Reviewers read the result: drafts of the design doc carried discussion ("if the database moved to its own server while keeping one write lock…", "the earlier draft", before/after "Finding (fixed)"). Process history belongs only in the GenAI / AI Collaboration sections. Prefer a short prose statement over a large table (a GDPR article-by-article table became one privacy paragraph). (2026-10-30)
+- **Keep each fact in one place and link to it.** The README and design doc both listed endpoints and tests, and the copies drifted (a stale "83 tests"). (2026-10-30)
+- **Check user-supplied prose against the repo before adopting it.** A pasted narrative had dangling citations, a repository layer and database constraints the code doesn't have, and a claim contradicting git history. Keep the user's voice; fix the facts and say what changed. (2026-10-30)
+- **Render Mermaid diagrams before calling docs done** (`verify` step 5). A `;` inside a sequence-diagram message and one-line ER attribute blocks broke two diagrams that looked fine as text. (2026-10-30)
+
 ## Working with the user
-- **Never attribute actions or decisions to the user that the record doesn't show.** The first AI-collaboration narrative was written in the user's voice and credited them with choices the AI had made. Write from evidence (git log, the user's own messages) and mark anything only the user can confirm with **[CHECK]**. (2026-10-29)
-- **When the user defers review ("commit now, I'll check later"), say so in the docs and commit messages.** Don't imply a review happened. (2026-10-29)
+- **Never attribute actions or decisions to the user that the record doesn't show.** The first AI-collaboration narrative was written in the user's voice and credited them with choices the AI had made. Write from evidence (git log, the user's own messages). Keep anything only the user can confirm as a reminder list for them, not as markers in the docs: the user removed the **[CHECK]** markers and asked to be reminded instead. (2026-10-29, updated 2026-10-30)
 - **Work one reviewable step at a time.** Finish, summarise, propose the next step, then stop. (2026-10-29)
-- **Ask about ambiguous requirements; don't assume.** Record each answer as an assumption in `docs/SYSTEM_DESIGN.md` §1. (2026-10-29)
+- **Ask about ambiguous requirements; don't assume.** Record each answer as an assumption in `docs/DECISIONS.md`. (2026-10-29)
