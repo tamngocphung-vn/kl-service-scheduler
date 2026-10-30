@@ -37,18 +37,12 @@ Core is R1–R3 in the feature map. Availability, cancel, idempotency and metric
 - Commits: small and logical, conventional-commit style, with a `Co-Authored-By: Claude` trailer.
 
 ## Skills (`.claude/skills/`)
-Project skills: `add-business-rule` (booking rule changes), `verify` (definition of done, before every commit), `retro` (self-improvement loop). They are the entry points and call the general engineering skills below for detail.
+Project skills: `add-business-rule` (booking rule changes), `verify` (definition of done, before every commit), `retro` (self-improvement loop). They are the entry points. Three general engineering skills from the addyosmani/agent-skills pack support them (provenance in `skills-lock.json`):
 
 | When | Use | Notes |
 |---|---|---|
 | Writing or changing tests or logic | `test-driven-development` | Used inside `add-business-rule`. Here a "red" test must also be mutation-checked (see `verify`). |
-| Implementing anything touching more than one file | `incremental-implementation` | Same intent as "one reviewable step at a time". |
-| Changing an endpoint, request/response shape or error code | `api-and-interface-design` | Keep the `/v1` contract backward compatible; regenerate `docs/openapi.json`. |
-| Before every commit | `code-review-and-quality`, then `code-simplification` if the review flags complexity | Run from `verify` step 4. |
+| Before every commit | `code-review-and-quality` | Run from `verify` step 4. |
 | Committing, splitting work into commits, pushing | `git-workflow-and-versioning` | Never `git reset --hard` or force-push without the user's explicit approval. |
-| Performance claims or fixes | `performance-optimization` | Measure first (see the benchmark in `docs/BUILD_FOR_THE_FUTURE.md` §2). |
-| Recording a design decision | `documentation-and-adrs` | Decisions live in `docs/DECISIONS.md` (D-numbers), not in separate ADR files. |
-| Setting up or tuning `CLAUDE.md`, skills or context | `context-engineering` | |
-| Only when the user asks | `planning-and-task-breakdown`, `constraint-driven-development`, `doubt-driven-development` | Heavier processes (extra files, adversarial sub-reviews). Not on by default. |
 
-`using-agent-skills` (the pack's router) refers to skills not in this repo (e.g. `interview-me`, `spec-driven-development`, `debugging-and-error-recovery`, `security-and-hardening`) and several skills link to `../../references/*.md` files that aren't in this repo. Ignore those references. Our definition of done is the `verify` skill.
+These three mention other skills from the pack and `../../references/*.md` files that aren't in this repo. Ignore those references. Our definition of done is the `verify` skill.

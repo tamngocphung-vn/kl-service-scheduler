@@ -33,20 +33,23 @@ Backend for **Keyloop Technical Assessment, Scenario A**. It books a dealership 
 ## Quick start
 
 ```bash
-# Option A: Docker (pre-prod profile: demo data loaded)
+# Option A: Node.js 22+ (dev profile: demo data, no external database)
+npm install && npm start         # http://localhost:3000, Swagger UI at /docs
+
+# Option B: Docker (pre-prod profile: demo data loaded)
 docker compose up --build                  # http://localhost:3000; `down -v` resets it
 APP_ENV=prod docker compose up --build     # prod profile: empty database
 
-# Option B: Node.js 22+ (dev profile: demo data, no external database)
-npm install && npm start
-
 # Then, in a second terminal
 npm run demo                     # scripted cURL walkthrough of the booking flow
+
+# Tests (no server needed)
+npm test                         # unit, API, multi-process race and query-plan tests on a real SQLite database
 ```
 
-Other commands: `npm test` · `npm run dev` (auto-reload) · `npm run typecheck` · `npm run build && npm run start:prod` (what the container runs) · `npm run openapi` (regenerate the contract) · `npm run start:otel-demo` (start with OpenTelemetry spans printed to the console) · `npm run docs:toc` (regenerate the contents list above) · `npm run db:generate` (new migration after editing `src/db/schema.ts`).
+Other commands: `npm run dev` (auto-reload) · `npm run typecheck` · `npm run build && npm run start:prod` (what the container runs) · `npm run openapi` (regenerate the contract) · `npm run start:otel-demo` (start with OpenTelemetry spans printed to the console) · `npm run docs:toc` (regenerate the contents list above) · `npm run db:generate` (new migration after editing `src/db/schema.ts`).
 
-**Environments.** Configuration lives in [`config/`](config), one profile per environment: [`dev.env`](config/dev.env) (npm scripts), [`pre-prod.env`](config/pre-prod.env) and [`prod.env`](config/prod.env) (Docker Compose, chosen by `APP_ENV`). [`example.env`](config/example.env) documents every variable. Personal overrides and real secrets go in `config/local.env`, which is git-ignored and loaded after the profile; shell variables override both. Pre-prod and prod export traces to a **fake** OTLP endpoint with a **fake** key, to simulate a managed observability service; moving secrets to AWS Secrets Manager is a planned upgrade. Migrations run on start-up.
+**Environments.** Configuration lives in [`config/`](config), one profile per environment: [`dev.env`](config/dev.env) (npm scripts), [`pre-prod.env`](config/pre-prod.env) and [`prod.env`](config/prod.env) (Docker Compose, chosen by `APP_ENV`). [`example.env`](config/example.env) documents every variable. Personal overrides and real secrets go in `config/local.env`, which is git-ignored and loaded after the profile; shell variables override both. Pre-prod and prod export traces to a **fake** OTLP endpoint, to simulate a managed observability service. No profile holds a secret: before go-live, the vendor's API key is injected at deploy time from AWS Secrets Manager (D13). Migrations run on start-up.
 
 ## API overview
 
@@ -154,10 +157,11 @@ src/
   services/        Use cases; the atomic check-and-book transaction; idempotency
   routes/v1/       HTTP routes and TypeBox schemas for /v1 (validation, types and OpenAPI from one source)
   db/              Drizzle schema, migrations runner, seed data
-  observability/   Prometheus metrics
+  observability/   Prometheus metrics, OpenTelemetry tracing
   app.ts, server.ts   App wiring and process entry
+config/            One environment profile each for dev, pre-prod and prod; example.env documents every variable
 drizzle/           SQL migrations
-test/              Unit, API, multi-process concurrency and query-plan tests (docs/BUILD_FOR_THE_FUTURE.md §4.1)
+test/              Unit, API, multi-process concurrency, query-plan and tracing tests (docs/BUILD_FOR_THE_FUTURE.md §4.1)
 scripts/           Seed, cURL demo, OpenAPI export
 CLAUDE.md, .claude/   The AI workflow: rules, hooks, test-runner subagent, skills, lessons, feature map
 ```
@@ -178,28 +182,15 @@ It is influenced by Lauren Tan's view of agent engineering: an agent shouldn't j
 
 1. **Define the goal before generating code.** The AI agent presented the architecture-shaping choices to me as options with trade-offs. I chose a transactional overlap check over slot locking (it supports any duration), writing the design doc alongside the code, and four extras: an availability endpoint, OpenAPI, seed data with a cURL demo, and metrics.
 2. **Make acceptance criteria explicit, and prove the tests can fail.** Each requirement is a testable outcome, mapped to the tests that prove it in `.claude/feature-map.md`. For example: *four processes racing to book the only EV technician must produce exactly one confirmed appointment* (`test/concurrency.test.ts`). To show this test really catches double-booking, the AI removed the booking transaction on purpose. All four processes then booked the same technician, and the test failed. When a bug appears, the map also points an agent straight at the relevant code and tests, so it doesn't have to search the codebase. That keeps the context small and saves tokens.
-3. **Use AI in narrow slices.** I chose to work **one reviewable step at a time**: the AI finishes one concern (the overlap rule, the booking transaction, API validation, tests or docs), summarises it, proposes the next step and stops for my review. I also told it to **ask about ambiguity instead of assuming**, to **stay on the core** requirements, and to run tests in a **subagent** to keep the main context small.
+3. **Use AI in narrow slices.** I chose to work **one reviewable step at a time**: the AI finishes one concern (the overlap rule, the booking transaction, API validation, tests or docs), summarises it, proposes the next step and stops for my review. I also told it to **ask about ambiguity instead of assuming**, to **stay on the core** requirements, and to run tests in a **subagent** to keep the main context small. I widened the scope twice, on purpose: OpenTelemetry tracing, so the observability strategy covers logs, metrics and traces, and one configuration profile per environment, to show how the same build runs in dev, pre-prod and prod. The rest of the production design (GDPR, regional deployment, secrets management, recovery targets) is documented with a trigger for when to build it, not built.
 4. **Verify with executable evidence.** A change counts only when tests against a real database (not mocks), a running server driven by the cURL demo, logs or metrics show it working. This stops AI hallucinations, and work heading in the wrong direction, from being accepted.
 5. **Keep decisions and final acceptance with the human.** Two rounds of structured questions produced the product decisions D1–D8 ([docs/DECISIONS.md](docs/DECISIONS.md)). For recovery, retention and deployment I chose the **simpler** option, against the AI's recommendation, and asked for its production design to be written up with **measurable upgrade triggers** ([docs/BUILD_FOR_THE_FUTURE.md](docs/BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers) §6). No change is committed without my approval.
-6. **Invest in the AI's instructions, and let them improve.** `CLAUDE.md` holds the brief's requirements word for word, the architecture rules and the scope. Skills turn routine work into repeatable steps: `verify` is the definition of done, and `add-business-rule` goes red test → domain → service → docs. I set these up after the first build; next time I would write them **before** starting, because every session after that followed the same rules without being reminded. They also improve over time: each correction becomes a lesson in `.claude/LESSONS.md`, which a hook loads into every new session. For example, "design docs state the final decision, not the discussion" became a lesson and a new check in `verify`.
+6. **Invest in the AI's instructions, and let them improve.** `CLAUDE.md` holds the brief's requirements word for word, the architecture rules and the scope. Skills turn routine work into repeatable steps: `verify` is the definition of done, and `add-business-rule` goes red test → domain → service → docs. I set these up after the first build; next time I would write them **before** starting, because every session after that followed the same rules without being reminded. They also improve over time: each correction becomes a lesson in `.claude/LESSONS.md`, which a hook loads into every new session, and a lesson that can be checked becomes a step in a skill.
 7. **Match the model and effort to the task.** I used Opus 5.5 to work out a plan, then Sonnet to carry it out. The reasoning is already in the plan, so execution needs less thinking time and costs less. Mechanical work goes to the cheapest model that can do it: the `test-runner` subagent runs on Haiku and only reports a short pass/fail summary.
 
 ### Future: multi-agent development model
 
-Today one main AI assistant does the work, with one subagent (`test-runner`) that runs the tests in a separate context. The next step is a multi-agent model, where specialised agents work with separate contexts, tools and missions. Planning, implementation, testing, runtime verification, documentation and coordination then no longer share one oversized context.
-
-The pieces already in `.claude/` are the starting point for each agent:
-
-| Future agent | Mission | Verification output | Starts from |
-|---|---|---|---|
-| **Planning** | Turn requirements into user stories, domain rules, API contracts and acceptance criteria | Task backlog and definition of done | `feature-map.md`, `planning-and-task-breakdown` skill |
-| **Implementation** | Implement one bounded feature at a time | Code changes and implementation notes | `add-business-rule`, `incremental-implementation` skills |
-| **Testing** | Write and run tests against the acceptance criteria | Test results and failing scenarios | `test-runner` subagent, `test-driven-development` skill |
-| **Verification** | Run the application and check real runtime behaviour | API responses, logs, database state, concurrency evidence | `verify` skill (smoke run with the cURL demo) |
-| **Review / documentation** | Review maintainability and keep the docs current | Review findings, updated README and OpenAPI | `code-review-and-quality`, `documentation-and-adrs` skills |
-| **Coordinator** | Sequence work, resolve conflicts, decide when a human must review | Task assignments, escalations, merge recommendation | `CLAUDE.md` rules, `LESSONS.md` |
-
-In this model, the implementation agent would not be responsible for declaring its own work complete. The testing and verification agents would independently validate the change against the original acceptance criteria. This creates a stronger feedback loop: an agent can reproduce a failing scenario, apply a targeted fix, rerun the relevant checks, and continue only when it can demonstrate success.
+Today one main agent does the work, and the `test-runner` subagent runs the tests in its own context. The next step is separate agents for planning, implementation, testing, runtime verification and documentation, each with its own context and tools, all starting from the rules, lessons and feature map already in `.claude/`. The implementation agent would then no longer declare its own work done: the testing and verification agents would check it independently against the acceptance criteria.
 
 ## Future improvements
 
@@ -213,7 +204,7 @@ In priority order.
 | First-fit allocation | **Load-balanced allocation** and an optional preferred technician | First-fit keeps loading the same technician, while others sit idle |
 | Changing a time means cancel, then rebook | **Atomic rescheduling** that keeps the original if the new slot is taken | Today the customer can lose their slot between the two calls |
 | A `409` only says "not available" | **Suggested slots:** the nearest free times returned with the `409` | Saves the advisor a second search; reuses the availability engine |
-| Configuration and fake keys live in committed profiles in `config/` | **Secrets in AWS Secrets Manager**, injected at start-up ([Build for the future §6](docs/BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers)) | Real credentials (database accounts, vendor API keys) never sit in git or images, can be rotated without a release, and every read is audited |
+| Profiles in `config/` hold settings only; there is no secrets store yet | **Secrets in AWS Secrets Manager**, injected at start-up ([Build for the future §6](docs/BUILD_FOR_THE_FUTURE.md#6-upgrade-triggers)) | Real credentials (database accounts, vendor API keys) never sit in git or images, can be rotated without a release, and every read is audited |
 | No notifications | **Confirmations, reminders and cancellations** via an outbox and domain events | Reminders reduce no-shows; the outbox makes sure no message is lost if a send fails |
 
 Full backlog, including booking holds for a multi-step UI: [design doc §9](docs/SYSTEM_DESIGN.md#9-future-work).

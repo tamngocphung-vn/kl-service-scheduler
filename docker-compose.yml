@@ -1,6 +1,6 @@
 # Runs one environment profile (config/<APP_ENV>.env); pre-prod by default, so the demo data is loaded.
-#   docker compose up --build                   pre-prod: demo data, fake OTLP endpoint and key
-#   APP_ENV=prod docker compose up --build      prod: empty database, fake OTLP endpoint and key
+#   docker compose up --build                   pre-prod: demo data, fake OTLP endpoint
+#   APP_ENV=prod docker compose up --build      prod: empty database, fake OTLP endpoint
 services:
   scheduler:
     build: .

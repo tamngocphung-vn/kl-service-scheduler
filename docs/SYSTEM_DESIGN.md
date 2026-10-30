@@ -9,7 +9,7 @@
 | Document | Contents |
 |---|---|
 | **This file** | Requirements (functional and non-functional) and the architecture plan: diagram, components, data flow, technologies, observability, GenAI in the design phase |
-| [DECISIONS.md](DECISIONS.md) | Product decisions D1–D13 and assumptions A1–A11 |
+| [DECISIONS.md](DECISIONS.md) | Product decisions D1–D13 and assumptions A1–A12 |
 | [BUILD_FOR_THE_FUTURE.md](BUILD_FOR_THE_FUTURE.md) | Scalability, performance, reliability, maintainability and observability: what is built today and how it grows. Also upgrade triggers, security and privacy, testing |
 | [openapi.json](openapi.json) | Full API contract |
 
@@ -64,18 +64,18 @@ flowchart LR
     R["HTTP layer<br/>routes + TypeBox schemas<br/>validation, error mapping"]
     S["SchedulingService<br/>orchestration + transactions"]
     D["Domain rules (pure)<br/>overlap, opening hours,<br/>free-resource search, slot generation"]
-    O["Observability<br/>pino logs · prom-client metrics<br/>request-ID propagation"]
+    O["Observability<br/>pino logs · prom-client metrics<br/>OpenTelemetry spans · request IDs"]
     R --> S --> D
     R -.-> O
     S -.-> O
   end
 
   DB[("SQLite (WAL)<br/>Drizzle ORM + SQL migrations")]
-  P[(Prometheus / log pipeline)]
+  P[("Prometheus / log pipeline<br/>OTLP endpoint (simulated)")]
 
   C1 & C2 & C3 -->|REST/JSON| R
   S -->|"BEGIN IMMEDIATE<br/>check + insert"| DB
-  O -->|/metrics, stdout JSON| P
+  O -->|"/metrics, stdout JSON, OTLP"| P
 ```
 
 ### 2.2 Production target
@@ -107,7 +107,7 @@ The service is stateless, so it scales horizontally. The database is deployed se
 | **SchedulingService** (`src/services`) | Use-case orchestration: loads entities, enforces business rules, runs the availability check + insert atomically, handles idempotent retries and cancellation. |
 | **Domain rules** (`src/domain`) | Pure functions with no I/O: `overlaps`, `isWithinOperatingHours`, `findFreeResources`, `isVehicleBusy`, `computeAvailableSlots`, timezone conversion. This is where most of the unit tests aim. |
 | **Persistence** (`src/db`) | Drizzle schema, versioned SQL migrations (`drizzle/`) applied at start-up, seed data. |
-| **Observability** (`src/observability`, Fastify hooks) | Structured JSON logs with a per-request correlation ID, Prometheus metrics, liveness and readiness probes. |
+| **Observability** (`src/observability`, Fastify hooks) | Structured JSON logs with a per-request correlation ID, Prometheus metrics, OpenTelemetry tracing (an `appointment.book` span per booking, off unless configured), liveness and readiness probes. |
 
 ---
 
@@ -149,7 +149,7 @@ sequenceDiagram
 
 Every check that decides the booking runs inside the shaded transaction, so two requests for the last slot can't both succeed. Any error rolls the transaction back and nothing is written.
 
-**Availability query:** loads candidates plus that day's confirmed appointments in two indexed queries, then calls the pure `computeAvailableSlots`. The work is O(slots × appointments-that-day), which is trivial at dealership scale (about 40 slots and tens of jobs). The booking endpoint recomputes everything under the lock, so a slot shown as free can still be lost to a faster customer. That race is handled correctly and returns a clean 409.
+**Availability query:** loads candidates plus that day's confirmed appointments in two indexed queries, then calls the pure `computeAvailableSlots`. The work is O(slots × appointments-that-day), which is trivial at dealership scale (about 40 slots and tens of jobs). The booking endpoint recomputes everything under the lock, so a slot shown as free can still be lost to a faster customer. That race is handled correctly and returns a clean 409. Availability doesn't take a vehicle, so a listed slot is also refused (`VEHICLE_ALREADY_BOOKED`, 409) when that vehicle already has an overlapping appointment at any dealership.
 
 ---
 
@@ -181,7 +181,7 @@ Every check that decides the booking runs inside the shaded transaction, so two 
 |---|---|---|
 | **Logs** | **Built.** Structured JSON (pino) on stdout. Every line carries `reqId`. Booking outcome logs include `appointmentId`, `dealershipId`, `technicianId`, `serviceBayId`, `outcome`. Unexpected errors are logged with a stack; client errors are not logged as errors. No names or contact details, only IDs. When tracing is on, every line also carries `trace_id`. | Collects stdout through the platform's log agent; search; 30-day retention; alert on error-level logs. |
 | **Metrics** | **Built.** `/metrics` in Prometheus format: `http_request_duration_seconds{method,route,status_code}` (RED), `appointment_booking_attempts_total{outcome}`, `appointment_booking_duration_seconds{outcome}` (includes lock wait), Node runtime metrics. | Managed Prometheus scrapes `/metrics`. Dashboards for booking success and conflict rates per dealership. |
-| **Traces** | **Built, off by default.** The OpenTelemetry Node SDK (`src/observability/tracing.ts`) loads before the app and instruments HTTP. An `appointment.book` span wraps each booking with its outcome and the dealership, service type, appointment, technician and bay IDs; customer and vehicle IDs are never put on spans (`test/tracing.test.ts`). Configured only through the standard `OTEL_*` environment variables: `npm run start:otel-demo` prints spans to the console as a local simulation, and `config/example.env` shows the OTLP endpoint and a **fake** API key for a managed service. On PostgreSQL, the driver's instrumentation will add a span per query. | Stores traces and links them to logs through `trace_id`. |
+| **Traces** | **Built, off by default.** The OpenTelemetry Node SDK (`src/observability/tracing.ts`) loads before the app and instruments HTTP. An `appointment.book` span wraps each booking with its outcome and the dealership, service type, appointment, technician and bay IDs; customer and vehicle IDs are never put on spans (`test/tracing.test.ts`). Configured only through the standard `OTEL_*` environment variables: `npm run start:otel-demo` prints spans to the console as a local simulation, and `config/example.env` shows the OTLP endpoint and API-key variables for a managed service; the key itself is injected at deploy time, never committed. On PostgreSQL, the driver's instrumentation will add a span per query. | Stores traces and links them to logs through `trace_id`. |
 | **Correlation** | **Built.** `x-request-id` is accepted from upstream or generated, echoed in the response header and included in every error body, so a support ticket can be matched to the logs. When tracing is on, the W3C `traceparent` from the gateway is honoured, so the booking span joins the caller's trace. | End-to-end view from the gateway through the service to the database. |
 | **Health** | **Built.** `/health` (liveness) and `/ready` (database check). | The platform's probes restart or stop routing to an unhealthy instance. |
 | **Alerting** | Nothing in the code. | **SLO alerts (§1.2):** booking p95 > 1 s, 5xx rate > 0.1%, availability error-budget burn. Also alert on a spike in lock-wait latency (contention) or in `NO_*_AVAILABLE` (capacity planning signal). |
