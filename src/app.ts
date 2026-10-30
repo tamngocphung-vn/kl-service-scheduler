@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import type { Db } from "./db/client.js";
 import { AppError } from "./domain/errors.js";
 import { createMetrics } from "./observability/metrics.js";
+import { traceLogFields } from "./observability/trace.js";
 import { v1Routes } from "./routes/v1/index.js";
 import { Appointment, ErrorResponse } from "./routes/v1/schemas.js";
 import { SchedulingService, type SchedulingServiceOptions } from "./services/scheduling-service.js";
@@ -23,7 +24,7 @@ export interface AppOptions extends SchedulingServiceOptions {
 
 export async function buildApp({ db, logger, ...serviceOpts }: AppOptions) {
   const app = Fastify({
-    logger: logger ?? false,
+    logger: typeof logger === "object" ? { ...logger, mixin: traceLogFields } : (logger ?? false),
     // Honour an upstream correlation ID (e.g. from an API gateway) or mint one.
     requestIdHeader: "x-request-id",
     genReqId: () => randomUUID(),

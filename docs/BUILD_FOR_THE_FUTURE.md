@@ -10,7 +10,7 @@ The brief asks that the design and implementation consider **scalability, perfor
 | [Performance](#2-performance) | About 0.35 ms per booking at any history size, against a 1 s budget | The budget absorbs a networked database and pricing logic; a Redis availability cache and in-memory reference-data cache when a trigger fires |
 | [Reliability](#3-reliability) | Check and insert in one locked transaction (race-tested across 4 processes); `Idempotency-Key`; graceful shutdown; health probes | Replicas and a multi-zone database; continuous backup; an outbox for events |
 | [Maintainability](#4-maintainability) | Pure domain layer; schemas generate validation, types and OpenAPI; versioned `/v1` routes; layered tests | New rules touch one layer; breaking API changes ship as `/v2` beside `/v1` |
-| [Observability](#5-observability) | JSON logs with request IDs, Prometheus metrics, health probes | OpenTelemetry tracing; a managed service for storage, dashboards and alerts |
+| [Observability](#5-observability) | JSON logs with request and trace IDs, Prometheus metrics, OpenTelemetry tracing (simulated locally), health probes | A managed service for storage, dashboards and alerts, by setting an endpoint and key |
 
 ## 1. Scalability
 
@@ -73,7 +73,7 @@ The brief asks that the design and implementation consider **scalability, perfor
 - **Layering:** HTTP → service → pure domain. Business rules have no I/O and are unit-tested in isolation, so a rule change touches one layer and one test file.
 - **One source of truth:** TypeBox schemas generate request validation, TypeScript types and the OpenAPI contract. Errors use stable machine-readable codes.
 - **API versioning (D9):** routes live in `src/routes/v1/` and are served under `/v1`. A breaking change ships as `/v2` beside it, reusing the same services and domain. `docs/openapi.json` is regenerated on every API change, and a test checks that the served version matches `package.json`.
-- **Deployability:** no database server to install; one-command Docker Compose start; migrations at start-up. (`docker compose up` itself has not yet been run, only the compiled-JS image layout.)
+- **Deployability:** no database server to install; one-command Docker Compose start; migrations at start-up. Shutdown flushes spans for at most 2 s, so an unreachable observability vendor can't delay or crash it. (`docker compose up` itself has not yet been run, only the compiled-JS image layout.)
 
 ### 4.1 Testing strategy
 
@@ -90,9 +90,9 @@ A fixed clock is injected (`now`), so date-dependent tests are deterministic.
 
 ## 5. Observability
 
-**Built today.** Structured JSON logs (pino) with a request ID on every line; booking outcomes logged with appointment, dealership, technician and bay IDs. `x-request-id` is accepted or generated, returned in the response and included in every error body. Prometheus metrics at `/metrics` (RED metrics, booking outcomes, lock wait). `/health` and `/ready` probes. Verified by `test/health.test.ts`.
+**Built today.** Structured JSON logs (pino) with a request ID on every line; booking outcomes logged with appointment, dealership, technician and bay IDs. `x-request-id` is accepted or generated, returned in the response and included in every error body. Prometheus metrics at `/metrics` (RED metrics, booking outcomes, lock wait). `/health` and `/ready` probes. OpenTelemetry tracing: an `appointment.book` span per booking, a child of the HTTP request span, with `trace_id` on every log line; off unless configured, and simulated locally with `npm run start:otel-demo`. Verified by `test/health.test.ts` and `test/tracing.test.ts`.
 
-**How it grows (D11).** OpenTelemetry tracing in the code, with `trace_id` on every log line. A managed cloud service stores logs, metrics and traces and runs dashboards and SLO alerts, so there is no monitoring stack to build or run. Full strategy: [design §6](SYSTEM_DESIGN.md#6-observability-strategy).
+**How it grows (D11).** Point the OTLP endpoint and API key at a managed cloud service. It stores logs, metrics and traces and runs dashboards and SLO alerts, so there is no monitoring stack to build or run. Full strategy: [design §6](SYSTEM_DESIGN.md#6-observability-strategy).
 
 ## 6. Upgrade triggers
 

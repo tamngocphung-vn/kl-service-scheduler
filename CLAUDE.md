@@ -27,7 +27,7 @@ service bay.
 - Requirement → code → test map: `.claude/feature-map.md`. Keep it current.
 
 ## Scope
-Core is R1–R3 in the feature map. Availability, cancel, idempotency and metrics exist, but their scope is **frozen**. Shifts, bay capabilities, auth, events and tracing are documented as future work in `docs/SYSTEM_DESIGN.md` §9, not built.
+Core is R1–R3 in the feature map. Availability, cancel, idempotency and metrics exist, but their scope is **frozen**. Tracing exists (OpenTelemetry, off unless `OTEL_*` is set; never put customer or vehicle IDs on spans). Shifts, bay capabilities, auth and events are documented as future work in `docs/SYSTEM_DESIGN.md` §9, not built.
 
 ## How to work here
 - **One reviewable step at a time.** Finish, summarise, propose the next step, then stop for the user's review.

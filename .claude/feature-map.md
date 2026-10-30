@@ -28,7 +28,7 @@ Maps each requirement to the code that implements it and the tests that prove it
 | Unknown request fields rejected | `ajv.customOptions.removeAdditional: false` in `src/app.ts` | `VALIDATION_ERROR` (400) | api › "returns 400 for a unknown field" |
 | Allocation: first free in stable ID order | `book()` picks `[0]` | none | api › "allocates a different technician when the first is busy" |
 
-## Supporting features (scope frozen, no further depth)
+## Supporting features
 
 | Feature | Code | Tests |
 |---|---|---|
@@ -36,3 +36,4 @@ Maps each requirement to the code that implements it and the tests that prove it
 | Cancellation releases resources; started appointments can't be cancelled | `cancel()` | api › "frees the technician and bay…", "cancellation" (incl. `APPOINTMENT_NOT_CANCELLABLE`) |
 | Idempotent retries | `replay()` + unique index on `idempotency_key` | api › "Idempotency-Key" |
 | Observability | `src/observability/metrics.ts`, hooks in `src/app.ts` | `test/health.test.ts` |
+| Tracing (D11): `appointment.book` span, `trace_id` on log lines, no customer or vehicle IDs on spans | `src/observability/trace.ts`, `tracing.ts`; span in `src/routes/v1/appointments.ts`; log mixin in `src/app.ts` | `test/tracing.test.ts` |

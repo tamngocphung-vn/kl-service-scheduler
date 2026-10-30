@@ -43,9 +43,9 @@ npm install && npm run seed && npm start
 npm run demo                     # scripted cURL walkthrough of the booking flow
 ```
 
-Other commands: `npm test` · `npm run dev` (auto-reload) · `npm run typecheck` · `npm run build && npm run start:prod` (what the container runs) · `npm run openapi` (regenerate the contract) · `npm run docs:toc` (regenerate the contents list above) · `npm run db:generate` (new migration after editing `src/db/schema.ts`).
+Other commands: `npm test` · `npm run dev` (auto-reload) · `npm run typecheck` · `npm run build && npm run start:prod` (what the container runs) · `npm run openapi` (regenerate the contract) · `npm run start:otel-demo` (start with OpenTelemetry spans printed to the console) · `npm run docs:toc` (regenerate the contents list above) · `npm run db:generate` (new migration after editing `src/db/schema.ts`).
 
-Environment: `PORT` (3000) · `DATABASE_PATH` (`./data/scheduler.db`) · `LOG_LEVEL` (`info`) · `SEED_DEMO_DATA` (`true` loads demo data at start-up). Migrations run on start-up.
+Environment: `PORT` (3000) · `DATABASE_PATH` (`./data/scheduler.db`) · `LOG_LEVEL` (`info`) · `SEED_DEMO_DATA` (`true` loads demo data at start-up). Migrations run on start-up. Tracing is off unless `OTEL_*` variables are set; `npm run start:otel-demo` prints spans to the console.
 
 ## API overview
 

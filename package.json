@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "docs:toc": "doctoc README.md --github --minlevel 2 --maxlevel 3 --title '**Contents**'"
+    "docs:toc": "doctoc README.md --github --minlevel 2 --maxlevel 3 --title '**Contents**'",
+    "start:otel-demo": "OTEL_TRACES_EXPORTER=console OTEL_METRICS_EXPORTER=none OTEL_LOGS_EXPORTER=none tsx src/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +26,9 @@
     "@fastify/swagger": "^9.9.2",
     "@fastify/swagger-ui": "^6.1.2",
     "@fastify/type-provider-typebox": "^6.3.0",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/instrumentation-http": "0.223.0",
+    "@opentelemetry/sdk-node": "0.223.0",
     "ajv-formats": "^3.0.1",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
@@ -33,6 +37,8 @@
     "typebox": "^1.4.3"
   },
   "devDependencies": {
+    "@opentelemetry/context-async-hooks": "2.12.0",
+    "@opentelemetry/sdk-trace-base": "2.12.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
     "doctoc": "^2.5.0",

@@ -1,3 +1,5 @@
+import { tracingSdk } from "./observability/tracing.js";
+import { setTimeout as sleep } from "node:timers/promises";
 import { buildApp } from "./app.js";
 import { openDatabase } from "./db/client.js";
 import { seed } from "./db/seed.js";
@@ -20,6 +22,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     app.log.info({ signal }, "shutting down");
     await app.close();
     close();
+    // Flush buffered spans, but an unreachable observability vendor must not block or crash shutdown.
+    await Promise.race([tracingSdk?.shutdown(), sleep(2000)]).catch((err) =>
+      app.log.warn({ err: (err as Error).message }, "trace flush failed"),
+    );
     process.exit(0);
   });
 }

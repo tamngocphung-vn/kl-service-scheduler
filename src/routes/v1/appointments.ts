@@ -1,7 +1,9 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { Type } from "typebox";
 import { AppError } from "../../domain/errors.js";
 import type { Metrics } from "../../observability/metrics.js";
+import { tracer } from "../../observability/trace.js";
 import type { SchedulingService } from "../../services/scheduling-service.js";
 import { BookAppointmentBody, Id, LocalDate, errorResponses } from "./schemas.js";
 
@@ -29,34 +31,47 @@ export const appointmentRoutes: FastifyPluginAsyncTypebox<Options> = async (app,
         },
       },
     },
-    async (req, reply) => {
-      const endTimer = metrics.bookingDuration.startTimer();
-      let outcome = "error";
-      try {
-        const { appointment, created } = service.book(req.body, req.headers["idempotency-key"]);
-        outcome = created ? "created" : "replayed";
-        req.log.info(
-          {
-            appointmentId: appointment.id,
-            dealershipId: appointment.dealershipId,
-            technicianId: appointment.technicianId,
-            serviceBayId: appointment.serviceBayId,
-            outcome,
-          },
-          "appointment booked",
-        );
-        return reply.code(created ? 201 : 200).send(appointment);
-      } catch (err) {
-        if (err instanceof AppError) {
-          outcome = err.code;
-          req.log.info({ outcome, dealershipId: req.body.dealershipId }, "appointment booking rejected");
+    async (req, reply) =>
+      // Resource IDs only on the span: customer and vehicle IDs are personal data (GDPR).
+      tracer.startActiveSpan("appointment.book", async (span) => {
+        span.setAttributes({ "dealership.id": req.body.dealershipId, "service_type.id": req.body.serviceTypeId });
+        const endTimer = metrics.bookingDuration.startTimer();
+        let outcome = "error";
+        try {
+          const { appointment, created } = service.book(req.body, req.headers["idempotency-key"]);
+          outcome = created ? "created" : "replayed";
+          span.setAttributes({
+            "appointment.id": appointment.id,
+            "technician.id": appointment.technicianId,
+            "service_bay.id": appointment.serviceBayId,
+          });
+          req.log.info(
+            {
+              appointmentId: appointment.id,
+              dealershipId: appointment.dealershipId,
+              technicianId: appointment.technicianId,
+              serviceBayId: appointment.serviceBayId,
+              outcome,
+            },
+            "appointment booked",
+          );
+          return reply.code(created ? 201 : 200).send(appointment);
+        } catch (err) {
+          if (err instanceof AppError) {
+            outcome = err.code;
+            req.log.info({ outcome, dealershipId: req.body.dealershipId }, "appointment booking rejected");
+          } else {
+            span.recordException(err as Error);
+            span.setStatus({ code: SpanStatusCode.ERROR });
+          }
+          throw err;
+        } finally {
+          metrics.bookingAttempts.inc({ outcome });
+          endTimer({ outcome });
+          span.setAttribute("booking.outcome", outcome);
+          span.end();
         }
-        throw err;
-      } finally {
-        metrics.bookingAttempts.inc({ outcome });
-        endTimer({ outcome });
-      }
-    },
+      }),
   );
 
   app.get(
